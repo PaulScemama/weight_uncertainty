@@ -20,7 +20,7 @@ log_variational_per_scalar(weights, mus, rhos)
 log_variational_per_vector(weight_vectors, mu_vectors, rho_vectors)
 
         3.1 | "F(D, θ) ≈ log q(w|θ) − log P(w) − log P(D|w)"                         
-                         ^^^^^^^^^^
+                        ^^^^^^^^^^
         3.2 | "Suppose that the variational posterior is a diagonal Gaussian distribution"
     
         
@@ -175,152 +175,152 @@ def log_prior_per_scalar(
     )
 
 
-### PER VECTOR DISTRIBUTION FUNCTIONS ###
+# ### PER VECTOR DISTRIBUTION FUNCTIONS ###
 
-@jaxtyped
-@typechecker
-def log_variational_per_vector(
-    weight_vectors: Float[Tensor, "N D"],
-    mu_vectors: Float[Tensor, "N D"],
-    rho_vectors: Float[Tensor, "N D"],
-) -> Float[Tensor, "N"]:
-    """
-    Computes the log density of each weight vector under a diagonal multivariate gaussian
-    distribution governed by the corresponding (mu vector, rho vector).
+# @jaxtyped
+# @typechecker
+# def log_variational_per_vector(
+#     weight_vectors: Float[Tensor, "N D"],
+#     mu_vectors: Float[Tensor, "N D"],
+#     rho_vectors: Float[Tensor, "N D"],
+# ) -> Float[Tensor, "N"]:
+#     """
+#     Computes the log density of each weight vector under a diagonal multivariate gaussian
+#     distribution governed by the corresponding (mu vector, rho vector).
 
-    Parameters
-    ----------
-        weight_vectors : [N x D] float tensor
-            N D-dimensional vectors representing the weights of the network to be
-            evaluated.
-        mu_vectors : [N x D] float tensor
-            N D-dimensional vectors representing the mean vectors for the
-            N independent multivariate gaussian distributions to evaluate
-            weights under.
-        rho_vectors : [N x D] float tensor
-            N D-dimensional vectors representing rho parameters for the N independent
-            multivariate gaussian distribution to evaluate weights under.
+#     Parameters
+#     ----------
+#         weight_vectors : [N x D] float tensor
+#             N D-dimensional vectors representing the weights of the network to be
+#             evaluated.
+#         mu_vectors : [N x D] float tensor
+#             N D-dimensional vectors representing the mean vectors for the
+#             N independent multivariate gaussian distributions to evaluate
+#             weights under.
+#         rho_vectors : [N x D] float tensor
+#             N D-dimensional vectors representing rho parameters for the N independent
+#             multivariate gaussian distribution to evaluate weights under.
 
-    Returns
-    -------
-    [N x 1] float tensor
-        the log density for each N weight vector according to the parameters in
-        mu_vectors and rho_vectors.
+#     Returns
+#     -------
+#     [N x 1] float tensor
+#         the log density for each N weight vector according to the parameters in
+#         mu_vectors and rho_vectors.
 
-    Notes
-    -----
-        We define sigmas = log(1 + exp(rhos)) as in section 3.2 of "Weight Uncertainty
-        in Neural Networks".
-    """
-    sigmas = sigmas_from_rhos(rho_vectors)
-    covariance_diagonals = sigmas.square()
-    # If a 0 is in sigmas -> non-singular since sigmas are diagonals
-    if not covariance_diagonals.all():
-        raise ValueError(
-            f"covariance_diagonals need to all be positive, but they are {covariance_diagonals}"
-        )
-    # this is from Daniel W https://stackoverflow.com/questions/48686934/numpy-vectorization-of-multivariate-normal
-    D = weight_vectors.size(1)
-    constant = D * np.log(2 * torch.pi)
-    log_determinants = torch.log(torch.prod(covariance_diagonals, axis=1))
-    deviations = weight_vectors - mu_vectors
-    inverses = 1 / covariance_diagonals
-    return -0.5 * (
-        constant
-        + log_determinants
-        + torch.sum(deviations * inverses * deviations, axis=1)
-    )
-
-
-@jaxtyped
-@typechecker
-def sample_variational_vectors(
-    n_samples: int,
-    mu_vectors: Float[Tensor, "N D"],
-    rho_vectors: Float[Tensor, "N D"],
-) -> Float[Tensor, "n_samples N D"]:
-    """
-    Samples from a N diagonal multivariate gaussians governed by the N mu_vectors
-    and N rho_vectors.
-
-    Parameters
-    ----------
-        n_samples : int
-            number of samples to return.
-        mu_vectors : [N x D] tensor
-            N D-dimensional vectors representing the mean vectors for N independent
-            multivariate gaussian distributions.
-        rho_vectors : [N x D] tensor
-            N D-dimensional vectors representing the rho parameters that's related to
-            sigma (see `sigma_from_rhos`).
-
-    Returns
-    -------
-    n_samples x [N x D] tensor
-        n_samples of the [N x D] tensor that represents N samples from N independent
-        D-dimensional multivariate gaussian distributions.
-
-    Notes
-    -----
-        We define sigmas = log(1 + exp(rhos)) as in section 3.2 of "Weight Uncertainty
-        in Neural Networks".
-    """
-    N, D = mu_vectors.size()
-    # [N x D] matrix of independent samples each from unit normal
-    # TODO: should this be multivariate normal? I.e. N d-dimensional samples from an
-    # mvn(0,1)?
-    epsilons = stats.norm.rvs(0, 1, (N, D))
-    sigmas = sigmas_from_rhos(rho_vectors)
-    samples = []
-    for _ in range(n_samples):
-        samples.append(mu_vectors + sigmas * epsilons)
-    return torch.stack(samples).float()
+#     Notes
+#     -----
+#         We define sigmas = log(1 + exp(rhos)) as in section 3.2 of "Weight Uncertainty
+#         in Neural Networks".
+#     """
+#     sigmas = sigmas_from_rhos(rho_vectors)
+#     covariance_diagonals = sigmas.square()
+#     # If a 0 is in sigmas -> non-singular since sigmas are diagonals
+#     if not covariance_diagonals.all():
+#         raise ValueError(
+#             f"covariance_diagonals need to all be positive, but they are {covariance_diagonals}"
+#         )
+#     # this is from Daniel W https://stackoverflow.com/questions/48686934/numpy-vectorization-of-multivariate-normal
+#     D = weight_vectors.size(1)
+#     constant = D * np.log(2 * torch.pi)
+#     log_determinants = torch.log(torch.prod(covariance_diagonals, axis=1))
+#     deviations = weight_vectors - mu_vectors
+#     inverses = 1 / covariance_diagonals
+#     return -0.5 * (
+#         constant
+#         + log_determinants
+#         + torch.sum(deviations * inverses * deviations, axis=1)
+#     )
 
 
-@jaxtyped
-@typechecker
-def log_prior_per_vector(
-    weight_vectors: Float[Tensor, "N D"], pi: float, var1: float, var2: float
-) -> Float[Tensor, "N 1"]:
-    """
-    Computes the log density of each weight vector under a scale mixture of two
-    zero-mean multivariate Gaussians governed by the parameters pi, var1, var2
-    (all shared between each weight vector).
+# @jaxtyped
+# @typechecker
+# def sample_variational_vectors(
+#     n_samples: int,
+#     mu_vectors: Float[Tensor, "N D"],
+#     rho_vectors: Float[Tensor, "N D"],
+# ) -> Float[Tensor, "n_samples N D"]:
+#     """
+#     Samples from a N diagonal multivariate gaussians governed by the N mu_vectors
+#     and N rho_vectors.
 
-    Parameters
-    ----------
-    weight_vectors : [N x D] float tensor
-        N D-dimensional vectors representing the weights of the network to be
-        evaluated.
-    pi : float
-        the proportion of scaling between the mixture of the two Gaussians
-    var1 : float
-        the variance of the first Gaussian
-    var2 : float
-        the variance of the second Gaussian
+#     Parameters
+#     ----------
+#         n_samples : int
+#             number of samples to return.
+#         mu_vectors : [N x D] tensor
+#             N D-dimensional vectors representing the mean vectors for N independent
+#             multivariate gaussian distributions.
+#         rho_vectors : [N x D] tensor
+#             N D-dimensional vectors representing the rho parameters that's related to
+#             sigma (see `sigma_from_rhos`).
 
-    Returns
-    -------
-    [N x 1] float tensor
-        The log density evaluated for each N weight vector under the same D-dimensional
-        scale mixture prior distribution governed by the parameters pi, var1, and
-        var2.
-    """
+#     Returns
+#     -------
+#     n_samples x [N x D] tensor
+#         n_samples of the [N x D] tensor that represents N samples from N independent
+#         D-dimensional multivariate gaussian distributions.
 
-    D = weight_vectors.size(1)
-    gaussian1_log_prob = torch.tensor(
-        stats.multivariate_normal.logpdf(
-            x=weight_vectors, mean=torch.zeros((D,)), cov=torch.ones((D,)) * var1
-        )
-    )
-    gaussian2_log_prob = torch.tensor(
-        stats.multivariate_normal.logpdf(
-            x=weight_vectors, mean=torch.zeros((D,)), cov=torch.ones((D,)) * var2
-        )
-    )
-    return torch.log(
-        pi * torch.exp(gaussian1_log_prob) + (1 - pi) * torch.exp(gaussian2_log_prob)
-    )
+#     Notes
+#     -----
+#         We define sigmas = log(1 + exp(rhos)) as in section 3.2 of "Weight Uncertainty
+#         in Neural Networks".
+#     """
+#     N, D = mu_vectors.size()
+#     # [N x D] matrix of independent samples each from unit normal
+#     # TODO: should this be multivariate normal? I.e. N d-dimensional samples from an
+#     # mvn(0,1)?
+#     epsilons = stats.norm.rvs(0, 1, (N, D))
+#     sigmas = sigmas_from_rhos(rho_vectors)
+#     samples = []
+#     for _ in range(n_samples):
+#         samples.append(mu_vectors + sigmas * epsilons)
+#     return torch.stack(samples).float()
+
+
+# @jaxtyped
+# @typechecker
+# def log_prior_per_vector(
+#     weight_vectors: Float[Tensor, "N D"], pi: float, var1: float, var2: float
+# ) -> Float[Tensor, "N 1"]:
+#     """
+#     Computes the log density of each weight vector under a scale mixture of two
+#     zero-mean multivariate Gaussians governed by the parameters pi, var1, var2
+#     (all shared between each weight vector).
+
+#     Parameters
+#     ----------
+#     weight_vectors : [N x D] float tensor
+#         N D-dimensional vectors representing the weights of the network to be
+#         evaluated.
+#     pi : float
+#         the proportion of scaling between the mixture of the two Gaussians
+#     var1 : float
+#         the variance of the first Gaussian
+#     var2 : float
+#         the variance of the second Gaussian
+
+#     Returns
+#     -------
+#     [N x 1] float tensor
+#         The log density evaluated for each N weight vector under the same D-dimensional
+#         scale mixture prior distribution governed by the parameters pi, var1, and
+#         var2.
+#     """
+
+#     D = weight_vectors.size(1)
+#     gaussian1_log_prob = torch.tensor(
+#         stats.multivariate_normal.logpdf(
+#             x=weight_vectors, mean=torch.zeros((D,)), cov=torch.ones((D,)) * var1
+#         )
+#     )
+#     gaussian2_log_prob = torch.tensor(
+#         stats.multivariate_normal.logpdf(
+#             x=weight_vectors, mean=torch.zeros((D,)), cov=torch.ones((D,)) * var2
+#         )
+#     )
+#     return torch.log(
+#         pi * torch.exp(gaussian1_log_prob) + (1 - pi) * torch.exp(gaussian2_log_prob)
+#     )
 
 
 
