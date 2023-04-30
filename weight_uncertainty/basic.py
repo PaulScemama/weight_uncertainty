@@ -11,21 +11,28 @@ including the loss function it uses to optimize the parameters theta = (mu, rho)
 
 Functions
 ---------
-    sigmas_from_rhos(rhos)
+sigmas_from_rhos(rhos)
+
         3.2 | "We parameterise the standard deviation pointwise as σ = log(1 + exp(ρ))"
-    
-    log_variational_per_scalar(weights, mus, rhos)
-    log_variational_per_vector(weight_vectors, mu_vectors, rho_vectors)
-        3.1 | "F(D, θ) ≈ log q(w|θ) − log P(w) − log P(D|w)"
+
+            
+log_variational_per_scalar(weights, mus, rhos)
+log_variational_per_vector(weight_vectors, mu_vectors, rho_vectors)
+
+        3.1 | "F(D, θ) ≈ log q(w|θ) − log P(w) − log P(D|w)"                         
                          ^^^^^^^^^^
         3.2 | "Suppose that the variational posterior is a diagonal Gaussian distribution"
     
-    sample_variational_scalars(n_samples, mus, rhos)
-    sample_variational_vectors(n_samples, mu_vectors, mu_rhos)
+        
+sample_variational_scalars(n_samples, mus, rhos)
+sample_variational_vectors(n_samples, mu_vectors, mu_rhos)
+
         3.2 | "w = t(θ, epsilon) = µ + log(1 + exp(ρ)) ◦ epsilon"
-    
-    log_prior_per_scalar(weights, pi, var1, var2)
-    log_prior_per_vectors(weight_vectors, pi, var1, var2)
+
+            
+log_prior_per_scalar(weights, pi, var1, var2)
+log_prior_per_vectors(weight_vectors, pi, var1, var2)
+
         3.3 | "P(w) = π N(w |0, σ2_1) + (1 − π) N(w |0, σ2_2)"
 """
 
