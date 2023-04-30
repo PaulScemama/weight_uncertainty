@@ -33,6 +33,8 @@ def sigmas_from_rhos(rhos: Float[Tensor, "..."]) -> Float[Tensor, "..."]:
     return torch.log(1 + torch.exp(rhos))
 
 
+### PER SCALAR DISTRIBUTION FUNCTIONS ###
+
 @jaxtyped
 @typechecker
 def log_variational_per_scalar(
@@ -70,6 +72,82 @@ def log_variational_per_scalar(
     return torch.tensor(stats.norm.logpdf(weights, mus, sigmas))
 
 
+
+@jaxtyped
+@typechecker
+def sample_variational_scalars(
+    n_samples: int,
+    mus: Float[Tensor, "M"],
+    rhos: Float[Tensor, "M"],
+) -> Float[Tensor, "n_samples M"]:
+    """
+    Samples from M gaussians governed by the M corresponding mus
+    and rhos.
+
+    Parameters
+    ----------
+        mus : M-length float tensor
+            mus each governing an individual normal distribution which
+            the corresponding weight will be evaluated under.
+        rhos : M-length float tensor
+            rhos each governing an individual normal distribution which
+            the corresponding weight will be evaluated under.
+    Returns
+    -------
+    [n_samples x M] float tensor
+        n_samples of an M-length tensor that represents M samples from M
+        independent univariate gaussian distributions.
+
+    Notes
+    -----
+        We define sigmas = log(1 + exp(rhos)) as in section 3.2 of "Weight Uncertainty
+        in Neural Networks"
+    """
+    M = mus.size(0)
+    epsilons = stats.norm.rvs(0, 1, M)
+    sigmas = sigmas_from_rhos(rhos)
+    samples = []
+    for _ in range(n_samples):
+        samples.append(mus + sigmas * epsilons)
+    return torch.stack(samples)
+
+@jaxtyped
+@typechecker
+def log_prior_per_scalar(
+    weights: Float[Tensor, "M"], pi: float, var1: float, var2: float
+) -> Float[Tensor, "M"]:
+    """
+    Computes the log density of each scalar weight under a scale mixture of
+    two zero-mean univariate Gaussians governed by the parameters pi, var1, var2
+    (all shared between each weight scalar).
+
+    Parameters
+    ----------
+    weights : [M] float tensor
+        M scalar weights representing the weights of the network to be
+        evaluated.
+    pi : float
+        the proportion of scaling between the mixture of the two Gaussians
+    var1 : float
+        the variance of the first Gaussian
+    var2 : float
+        the variance of the second Gaussian
+
+    Returns
+    -------
+    [M] float tensor 
+        the log density of each scalar weight evaluated under the same univariate
+        scale mixture prior distribution governed by the parameters pi, var1, and var2.
+    """
+    gaussian1_log_prob = torch.tensor(stats.norm.logpdf(x=weights, mean=0, cov=var1))
+    gaussian2_log_prob = torch.tensor(stats.norm.logpdf(x=weights, mean=0, cov=var2))
+    return torch.log(
+        pi * torch.exp(gaussian1_log_prob) + (1 - pi) * torch.exp(gaussian2_log_prob)
+    )
+
+
+### PER VECTOR DISTRIBUTION FUNCTIONS ###
+
 @jaxtyped
 @typechecker
 def log_variational_per_vector(
@@ -78,8 +156,8 @@ def log_variational_per_vector(
     rho_vectors: Float[Tensor, "N D"],
 ) -> Float[Tensor, "N"]:
     """
-    Computes the log density of the weight_vectors under a diagonal multivariate gaussian
-    distribution governed by the mu_vectors and rho_vectors.
+    Computes the log density of each weight vector under a diagonal multivariate gaussian
+    distribution governed by the corresponding (mu vector, rho vector).
 
     Parameters
     ----------
@@ -127,50 +205,11 @@ def log_variational_per_vector(
 
 @jaxtyped
 @typechecker
-def sample_variational_scalars(
-    n_samples: int,
-    mus: Float[Tensor, "M"],
-    rhos: Float[Tensor, "M"],
-) -> Float[Tensor, "n_samples M"]:
-    """
-    Samples from M gaussians governed by the M corresponding mus
-    and rhos.
-
-    Parameters
-    ----------
-        mus : M-length float tensor
-            mus each governing an individual normal distribution which
-            the corresponding weight will be evaluated under.
-        rhos : M-length float tensor
-            rhos each governing an individual normal distribution which
-            the corresponding weight will be evaluated under.
-    Returns
-    -------
-    [n_samples x M] float tensor
-        n_samples of an M-length tensor that represents M samples from M
-        independent univariate gaussian distributions.
-
-    Notes
-    -----
-        We define sigmas = log(1 + exp(rhos)) as in section 3.2 of "Weight Uncertainty
-        in Neural Networks"
-    """
-    M = mus.size(0)
-    epsilons = stats.norm.rvs(0, 1, M)
-    sigmas = sigmas_from_rhos(rhos)
-    samples = []
-    for _ in range(n_samples):
-        samples.append(mus + sigmas * epsilons)
-    return torch.stack(samples)
-
-
-@jaxtyped
-@typechecker
 def sample_variational_vectors(
     n_samples: int,
     mu_vectors: Float[Tensor, "N D"],
     rho_vectors: Float[Tensor, "N D"],
-) -> Float[Tensor, "N D"]:
+) -> Float[Tensor, "n_samples N D"]:
     """
     Samples from a N diagonal multivariate gaussians governed by the N mu_vectors
     and N rho_vectors.
@@ -206,21 +245,54 @@ def sample_variational_vectors(
     samples = []
     for _ in range(n_samples):
         samples.append(mu_vectors + sigmas * epsilons)
-    return torch.stack(samples)
+    return torch.stack(samples).float()
 
 
 @jaxtyped
 @typechecker
-def logprior_fn(weights: Float[Tensor, "N D"], pi: float, sigma1: float, sigma2: float):
-    print(weights.shape)
+def log_prior_per_vector(
+    weight_vectors: Float[Tensor, "N D"], pi: float, var1: float, var2: float
+) -> Float[Tensor, "N 1"]:
+    """
+    Computes the log density of each weight vector under a scale mixture of two
+    zero-mean multivariate Gaussians governed by the parameters pi, var1, var2
+    (all shared between each weight vector).
 
-    gaussian1_log_prob = stats.multivariate_normal.logpdf(
-        x=weights, mean=0, cov=sigma1**2
-    )
-    gaussian2_log_prob = stats.multivariate_normal.logpdf(
-        x=weights, mean=0, cov=sigma2**2
-    )
+    Parameters
+    ----------
+    weight_vectors : [N x D] float tensor
+        N D-dimensional vectors representing the weights of the network to be
+        evaluated.
+    pi : float
+        the proportion of scaling between the mixture of the two Gaussians
+    var1 : float
+        the variance of the first Gaussian
+    var2 : float
+        the variance of the second Gaussian
 
+    Returns
+    -------
+    [N x 1] float tensor
+        The log density evaluated for each N weight vector under the same D-dimensional
+        scale mixture prior distribution governed by the parameters pi, var1, and
+        var2.
+    """
+
+    D = weight_vectors.size(1)
+    gaussian1_log_prob = torch.tensor(
+        stats.multivariate_normal.logpdf(
+            x=weight_vectors, mean=torch.zeros((D,)), cov=torch.ones((D,)) * var1
+        )
+    )
+    gaussian2_log_prob = torch.tensor(
+        stats.multivariate_normal.logpdf(
+            x=weight_vectors, mean=torch.zeros((D,)), cov=torch.ones((D,)) * var2
+        )
+    )
     return torch.log(
         pi * torch.exp(gaussian1_log_prob) + (1 - pi) * torch.exp(gaussian2_log_prob)
     )
+
+
+
+
