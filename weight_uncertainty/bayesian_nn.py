@@ -22,11 +22,11 @@ class BayesLinear:
             ):
         
         if init_params:
-            self.mu_vectors = init_params
-            self.rho_vectors = init_params
+            self.mus = init_params
+            self.rhos = init_params
         else:
-            self.mu_vectors = torch.empty(size=(in_features, out_features)).normal_()
-            self.rho_vectors = torch.empty(size=(in_features, out_features)).normal_()
+            self.mus = torch.empty(size=(in_features, out_features)).normal_()
+            self.rhos = torch.empty(size=(in_features, out_features)).normal_()
         
         self.prior_pi = prior_pi
         self.prior_sigma1 = prior_sigma1
@@ -34,14 +34,14 @@ class BayesLinear:
 
     def __call__(self, x: torch.Tensor, n_samples: int = 1):
 
-        sampled_weight_vectors = sample_variational_vectors(
+        sampled_weights = sample_variational_scalars(
             n_samples=n_samples,
-            mu_vectors=self.mu_vectors,
-            rho_vectors=self.rho_vectors
+            mus=self.mus.ravel(),
+            rhos=self.rhos.ravel(),
         )
 
         mean_linear_out = torch.stack(
-            [F.linear(x, sampled_weight_vectors[i].T) for i in range(n_samples)]
+            [F.linear(x, sampled_weights[i].T) for i in range(n_samples)]
         ).mean()
 
         return mean_linear_out
