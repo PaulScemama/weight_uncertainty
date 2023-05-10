@@ -1,50 +1,55 @@
 import torch
 import torch.nn.functional as F
-from basic import (log_variational_per_scalar, 
-                         log_variational_per_vector, 
-                         sample_variational_scalars, 
-                         sample_variational_vectors,
-                         log_prior_per_scalar, 
-                         log_prior_per_vector,)
+from basic import logvariational_fn, samplevariational_fn, logprior_fn
+import torch.nn as nn
 
 
+class BayesLinear(nn.Module):
 
-class BayesLinear:
+    """
+    Defines a Bayesian Linear Layer.
+
+    Attributes
+    ----------
+        in_features : int
+            number of features in the input
+    """
 
     def __init__(
-            self, 
-            in_features: int, 
-            out_features: int, 
-            prior_pi: float,
-            prior_sigma1: float,
-            prior_sigma2: float, 
-            init_params: torch.Tensor = None
-            ):
-        
-        if init_params:
-            self.mus = init_params
-            self.rhos = init_params
-        else:
-            self.mus = torch.empty(size=(in_features, out_features)).normal_()
-            self.rhos = torch.empty(size=(in_features, out_features)).normal_()
-        
-        self.prior_pi = prior_pi
-        self.prior_sigma1 = prior_sigma1
-        self.prior_sigma2 = prior_sigma2
+        self,
+        in_features: int,
+        out_features: int,
+        prior_pi: float,
+        prior_var1: float,
+        prior_var2: float,
+    ):
+        super().__init__()
+        # Layer attributes
+        self.in_features = in_features
+        self.out_features = out_features
 
-    def __call__(self, x: torch.Tensor, n_samples: int = 1):
-
-        sampled_weights = sample_variational_scalars(
-            n_samples=n_samples,
-            mus=self.mus.ravel(),
-            rhos=self.rhos.ravel(),
+        # Parameters governing weights of the layer
+        # We add a row for biases
+        self.mus = nn.Parameter(
+            torch.empty(size=(in_features + 1, out_features)).normal_()
+        )
+        self.rhos = nn.Parameter(
+            torch.empty(size=(in_features + 1, out_features)).normal_()
         )
 
-        mean_linear_out = torch.stack(
-            [F.linear(x, sampled_weights[i].T) for i in range(n_samples)]
-        ).mean()
+        # Parameters governing weight's prior distribution
+        self.pi = prior_pi
+        self.prior_var1 = prior_var1
+        self.prior_var2 = prior_var2
 
-        return mean_linear_out
-    
-        
-        
+    def __call__(self, x, n_samples):
+        # For biases
+        column_of_ones = torch.ones(x.size(0), 1)
+        x_aug = torch.concat([column_of_ones, x], axis=-1)
+
+        sampled_weights = samplevariational_fn(mus=self.mus, rhos=self.rhos)
+
+        # logvariational = logvariational_fn(sampled_weights, self.mus, self.rhos)
+        # logprior = logprior_fn(sampled_weights, self.pi, self.var1, self.var2)
+
+        return x_aug @ sampled_weights

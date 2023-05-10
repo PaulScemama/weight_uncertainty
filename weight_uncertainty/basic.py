@@ -16,25 +16,28 @@ sigmas_from_rhos(rhos)
         3.2 | "We parameterise the standard deviation pointwise as σ = log(1 + exp(ρ))"
 
             
-log_variational_per_scalar(weights, mus, rhos)
+logvariational_fn(weights, mus, rhos)
 
         3.1 | "F(D, θ) ≈ log q(w|θ) − log P(w) − log P(D|w)"                         
-                        ^^^^^^^^^^
+                         ^^^^^^^^^^
         3.2 | "Suppose that the variational posterior is a diagonal Gaussian distribution"
     
         
-sample_variational_scalars(n_samples, mus, rhos)
+samplevariational_fn(n_samples, mus, rhos)
 
         3.2 | "w = t(θ, epsilon) = µ + log(1 + exp(ρ)) ◦ epsilon"
 
             
-log_prior_per_scalar(weights, pi, var1, var2)
+logprior_fn(weights, pi, var1, var2)
 
         3.3 | "P(w) = π N(w |0, σ2_1) + (1 − π) N(w |0, σ2_2)"
 """
 
 
 def rhos_from_sigmas(sigmas):
+    """
+    For testing.
+    """
     return torch.log(torch.exp(sigmas) - 1)
 
 
@@ -42,25 +45,23 @@ def rhos_from_sigmas(sigmas):
 @typechecker
 def sigmas_from_rhos(rhos: Float[Tensor, "..."]) -> Float[Tensor, "..."]:
     """
-    Parameterization of the standard deviation sigma. See section 3.2 of
-    "Weight Uncertainty in Neural Networks"
+    Computes the standard deviations from the the rho parameters according to the
+    parameterization σ = log(1 + exp(ρ)) introduced in section 3.2 of "Weight
+    Uncertainty in Neural Networks".
 
     Parameters
     ----------
-    rhos : N x D float tensor
-        N D-dimensional vectors representing rho parameters for the N independent
-        multivariate gaussian distributions.
+    rhos : [...] float tensor
+        Rho parameters for ... Gaussian distributions that represent the weights of
+        the network.
 
     Returns
     -------
-    sigmas : N x D float tensor
-        N D-dimensional vectors representing sigma parameters for the N independent
-        multivariate gaussian distributions.
+    sigmas : [...] float tensor
+        Sigma parameters for ... Gaussian distributions that represent the weights of
+        the network.
     """
     return torch.log(1 + torch.exp(rhos))
-
-
-### PER SCALAR DISTRIBUTION FUNCTIONS ###
 
 
 @jaxtyped
@@ -138,7 +139,7 @@ def samplevariational_fn(
         in Neural Networks"
     """
     shape = mus.shape
-    epsilons = stats.norm.rvs(0, 1, shape)
+    epsilons = torch.tensor(stats.norm.rvs(0, 1, shape)).float()
     sigmas = sigmas_from_rhos(rhos)
     if n_samples > 1:
         return torch.stack([mus + sigmas * epsilons for _ in range(n_samples)]).float()
@@ -176,8 +177,12 @@ def logprior_fn(
     """
     weights_unraveled = weights.ravel()
     # sqrt(var_) since norm.lopdf expects standard deviation
-    gaussian1_log_prob = torch.tensor(stats.norm.logpdf(weights_unraveled, 0, np.sqrt(var1)))
-    gaussian2_log_prob = torch.tensor(stats.norm.logpdf(weights_unraveled, 0, np.sqrt(var2)))
+    gaussian1_log_prob = torch.tensor(
+        stats.norm.logpdf(weights_unraveled, 0, np.sqrt(var1))
+    )
+    gaussian2_log_prob = torch.tensor(
+        stats.norm.logpdf(weights_unraveled, 0, np.sqrt(var2))
+    )
     return torch.log(
         pi * torch.exp(gaussian1_log_prob) + (1 - pi) * torch.exp(gaussian2_log_prob)
     )
