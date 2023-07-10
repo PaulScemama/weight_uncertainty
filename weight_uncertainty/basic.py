@@ -3,6 +3,7 @@ import jax.random as random
 import jax.numpy as jnp
 import jax.scipy.stats as stats
 from jax import Array
+from functools import partial
 from jaxtyping import Float, jaxtyped
 from typeguard import typechecked as typechecker
 
@@ -33,15 +34,14 @@ logprior_fn(weights, pi, var1, var2)
         3.3 | "P(w) = π N(w |0, σ2_1) + (1 − π) N(w |0, σ2_2)"
 """
 
-
+@jax.jit
 def rhos_from_sigmas(sigmas):
     """
     For testing.
     """
     return jnp.log(jnp.exp(sigmas) - 1)
 
-# @jaxtyped
-# @typechecker
+
 def sigmas_from_rhos(rhos: Float[Array, "..."]) -> Float[Array, "..."]:
     """
     Computes the standard deviations from the the rho parameters according to the
@@ -63,8 +63,7 @@ def sigmas_from_rhos(rhos: Float[Array, "..."]) -> Float[Array, "..."]:
     return jnp.log(1 + jnp.exp(rhos))
 
 
-# @jaxtyped
-# @typechecker
+@jax.jit
 def logvariational_fn(
     weights: Float[Array, "..."],
     mus: Float[Array, "..."],
@@ -105,8 +104,7 @@ def logvariational_fn(
     return stats.norm.logpdf(weights_unraveled, mus_unraveled, sigmas_unraveled)
 
 
-# @jaxtyped
-# @typechecker
+@partial(jax.jit, static_argnames=["n_samples"]) # n_samples will only take a couple values so this should be okay.
 def samplevariational_fn(
     mus: Float[Array, "..."],
     rhos: Float[Array, "..."],
@@ -139,14 +137,10 @@ def samplevariational_fn(
     shape = mus.shape
     epsilons = random.normal(key, shape)
     sigmas = sigmas_from_rhos(rhos)
-    if n_samples > 1:
-        return jnp.stack([mus + sigmas * epsilons for _ in range(n_samples)])
-    else:
-        return (mus + sigmas * epsilons)
+    return jnp.stack((mus + sigmas * epsilons,) * n_samples, axis=0)
 
 
-# @jaxtyped
-# @typechecker
+@jax.jit
 def logprior_fn(
     weights: Float[Array, "..."], pi: float, var1: float, var2: float
 ) -> jax.Array:
