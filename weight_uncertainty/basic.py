@@ -101,7 +101,7 @@ def logvariational_fn(
     mus_unraveled = mus.ravel()
     sigmas_unraveled = sigmas.ravel()
     # Evaluate each weight under its corresponding unvariate Gaussian
-    return stats.norm.logpdf(weights_unraveled, mus_unraveled, sigmas_unraveled)
+    return stats.norm.logpdf(weights_unraveled, mus_unraveled, sigmas_unraveled).mean()
 
 
 @partial(jax.jit, static_argnames=["n_samples"]) # n_samples will only take a couple values so this should be okay.
@@ -173,6 +173,6 @@ def logprior_fn(
     gaussian2_log_prob = stats.norm.logpdf(weights_unraveled, 0, jnp.sqrt(var2))
     return jnp.log(
         pi * jnp.exp(gaussian1_log_prob) + (1 - pi) * jnp.exp(gaussian2_log_prob)
-    )
+    ).mean()
     
 
