@@ -104,12 +104,11 @@ def logvariational_fn(
     return stats.norm.logpdf(weights_unraveled, mus_unraveled, sigmas_unraveled).mean()
 
 
-@partial(jax.jit, static_argnames=["n_samples"]) # n_samples will only take a couple values so this should be okay.
+
 def samplevariational_fn(
     mus: Float[Array, "..."],
     rhos: Float[Array, "..."],
     key: random.PRNGKey,
-    n_samples: int,
 ) -> Float[Array, "..."]:
     """
     Samples from M gaussians governed by the M corresponding mus
@@ -137,7 +136,7 @@ def samplevariational_fn(
     shape = mus.shape
     epsilons = random.normal(key, shape)
     sigmas = sigmas_from_rhos(rhos)
-    return jnp.stack((mus + sigmas * epsilons,) * n_samples, axis=0)
+    return mus + sigmas * epsilons
 
 
 @jax.jit
