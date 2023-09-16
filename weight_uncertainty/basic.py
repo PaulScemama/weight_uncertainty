@@ -34,7 +34,7 @@ logprior_fn(weights, pi, var1, var2)
         3.3 | "P(w) = π N(w |0, σ2_1) + (1 − π) N(w |0, σ2_2)"
 """
 
-@jax.jit
+# @jax.jit
 def rhos_from_sigmas(sigmas):
     """
     For testing.
@@ -63,7 +63,7 @@ def sigmas_from_rhos(rhos: Float[Array, "..."]) -> Float[Array, "..."]:
     return jnp.log(1 + jnp.exp(rhos))
 
 
-@jax.jit
+# @jax.jit
 def logvariational_fn(
     weights: Float[Array, "..."],
     mus: Float[Array, "..."],
@@ -139,7 +139,7 @@ def samplevariational_fn(
     return mus + sigmas * epsilons
 
 
-@jax.jit
+# @jax.jit
 def logprior_fn(
     weights: Float[Array, "..."], pi: float, var1: float, var2: float
 ) -> jax.Array:
