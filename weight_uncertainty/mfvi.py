@@ -33,9 +33,8 @@ def meanfield_logprob(meanfield_params, sample_tree):
 def meanfield_sample(meanfield_params, key: PRNGKey, n_samples: int):
     # sample from the variational distribution governed by
     # `meanfield_params`
-    keys = jax.random.split(key, n_samples)
 
-    def meanfield_sample(meanfield_params, key):
+    def meanfield_sample(key, _): # _ for lax.scan's f arg signature.
         mu_tree, rho_tree = meanfield_params
         sigma_tree = jax.tree_map(jnp.exp, rho_tree)
 
@@ -47,12 +46,11 @@ def meanfield_sample(meanfield_params, key: PRNGKey, n_samples: int):
             noise_tree,
         )
 
-        return sample, new_key
+        return new_key, sample
 
-    sampled_params, new_keys = jax.vmap(meanfield_sample, in_axes=[None, 0])(
-        meanfield_params, keys
-    )
-    return sampled_params, new_keys[0]
+    new_key, sampled_params = jax.lax.scan(meanfield_sample, init=key, xs=jnp.arange(n_samples))
+
+    return sampled_params, new_key
 
 
 # mu = jnp.zeros((5, 2))
@@ -62,12 +60,12 @@ def meanfield_sample(meanfield_params, key: PRNGKey, n_samples: int):
 # mfvi.meanfield_sample(params, jax.random.PRNGKey(1), 2)
 
 
-def meanfield_elbo(meanfield_params, key, logjoint_fn, n_samples):
+def meanfield_elbo(meanfield_params, batch, key, logjoint_fn, n_samples):
     # compute the elbo given a `batch` of data, the `logjoint_fn` joint density that
     # is proportional to the target posterior, and the `meanfield_params`.
     sampled_params, new_key = meanfield_sample(meanfield_params, key, n_samples)
     log_variational = meanfield_logprob(meanfield_params, sampled_params)
-    log_joint = logjoint_fn(sampled_params)
+    log_joint = logjoint_fn(sampled_params, batch)
     return (log_variational - log_joint), new_key
 
 
