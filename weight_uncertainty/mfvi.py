@@ -33,8 +33,9 @@ def meanfield_logprob(meanfield_params, sample_tree):
 def meanfield_sample(meanfield_params, key: PRNGKey, n_samples: int):
     # sample from the variational distribution governed by
     # `meanfield_params`
+    keys = jax.random.split(key, n_samples + 1) # n_sample keys for sampling, one extra to return.
 
-    def meanfield_sample(key, _): # _ for lax.scan's f arg signature.
+    def meanfield_sample(meanfield_params, key):
         mu_tree, rho_tree = meanfield_params
         sigma_tree = jax.tree_map(jnp.exp, rho_tree)
 
@@ -46,11 +47,12 @@ def meanfield_sample(meanfield_params, key: PRNGKey, n_samples: int):
             noise_tree,
         )
 
-        return new_key, sample
+        return sample, new_key
 
-    new_key, sampled_params = jax.lax.scan(meanfield_sample, init=key, xs=jnp.arange(n_samples))
-
-    return sampled_params, new_key
+    sampled_params, new_keys = jax.vmap(meanfield_sample, in_axes=[None, 0])(
+        meanfield_params, keys[1:]
+    )
+    return sampled_params, new_keys[0]
 
 
 # mu = jnp.zeros((5, 2))
