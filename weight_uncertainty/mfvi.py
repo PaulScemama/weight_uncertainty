@@ -21,17 +21,15 @@ class MFVIInfo(NamedTuple):
     elbo: float
 
 
-
 def init(
-        position: Dict,
-        optimizer,
+    position: Dict,
+    optimizer,
 ) -> MFVIState:
     """Initialize the mean-field VI state"""
     mu = jax.tree_map(jnp.zeros_like, position)
     rho = jax.tree_map(lambda x: -2.0 * jnp.ones_like(x), position)
     opt_state = optimizer.init((mu, rho))
     return MFVIState(mu, rho, opt_state)
-
 
 
 # // Core functions ------------------------------------------------------
@@ -60,7 +58,9 @@ def meanfield_logprob(meanfield_params, sample_tree: Dict):
 def meanfield_sample(meanfield_params, key: PRNGKey, n_samples: int):
     # sample from the variational distribution governed by
     # `meanfield_params`
-    keys = jax.random.split(key, n_samples + 1) # n_sample keys for sampling, one extra to return.
+    keys = jax.random.split(
+        key, n_samples + 1
+    )  # n_sample keys for sampling, one extra to return.
 
     def meanfield_sample(meanfield_params, key):
         mu_tree, rho_tree = meanfield_params
@@ -89,6 +89,7 @@ def meanfield_sample(meanfield_params, key: PRNGKey, n_samples: int):
 # mfvi.meanfield_sample(params, jax.random.PRNGKey(1), 2)
 
 
+# @partial(jax.jit, static_argnames=["logjoint_fn, n_samples"])
 def meanfield_elbo(meanfield_params, batch, key, logjoint_fn, n_samples):
     # compute the elbo given a `batch` of data, the `logjoint_fn` joint density that
     # is proportional to the target posterior, and the `meanfield_params`.
@@ -98,29 +99,25 @@ def meanfield_elbo(meanfield_params, batch, key, logjoint_fn, n_samples):
     return (log_variational - log_joint), new_key
 
 
-
-
 # Update function ----------------------------------------------------------------
 @partial(jax.jit, static_argnames=["logjoint_fn", "optimizer", "n_samples"])
 def step(
-        key: jax.random.PRNGKey,
-        mfvi_state: MFVIState,
-        logjoint_fn: callable,
-        optimizer,
-        batch,
-        n_samples,
+    key: jax.random.PRNGKey,
+    mfvi_state: MFVIState,
+    logjoint_fn: callable,
+    optimizer,
+    batch,
+    n_samples,
 ):
     meanfield_params = mfvi_state.mu, mfvi_state.rho
     # evaluate elbo and get grad
-    (elbo, key), grad  =  jax.value_and_grad(
-            meanfield_elbo, has_aux=True
-        )(meanfield_params, batch, key, logjoint_fn, n_samples)
-    
-    updates, new_opt_state = optimizer.update(grad, mfvi_state.opt_state, meanfield_params)
+    (elbo, key), grad = jax.value_and_grad(meanfield_elbo, has_aux=True)(
+        meanfield_params, batch, key, logjoint_fn, n_samples
+    )
+
+    updates, new_opt_state = optimizer.update(
+        grad, mfvi_state.opt_state, meanfield_params
+    )
     new_mu, new_rho = jax.tree_map(lambda p, u: p + u, meanfield_params, updates)
     new_mfvi_state = MFVIState(new_mu, new_rho, new_opt_state)
     return new_mfvi_state, MFVIInfo(elbo), key
-
-
-
-
