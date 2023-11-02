@@ -12,7 +12,6 @@ from weight_uncertainty.types import ArrayLikeTree, ArrayTree
 from weight_uncertainty.tree_utils import normal_like_tree
 
 
-# // Structures ----------------------------------------------------------
 class MFVIState(NamedTuple):
     mu: ArrayLikeTree
     rho: ArrayLikeTree
@@ -34,7 +33,6 @@ def init(
     return MFVIState(mu, rho, opt_state)
 
 
-# // Core functions ------------------------------------------------------
 def meanfield_logprob(
     meanfield_params: ArrayLikeTree, position: ArrayLikeTree
 ) -> float:
@@ -148,7 +146,7 @@ def meanfield_elbo(
         Values for variational parameters governing the variational distribution.
     batch : Tuple
         A batch of data.
-    logjoint_fn : _type_
+    logjoint_fn : Callable
         Function mapping data and parameter values to the log probability
         of the joint distribution which represents the probabilistic model.
     n_samples : int
@@ -183,28 +181,8 @@ def step(
     n_samples: int,
 ) -> Tuple[MFVIState, MFVIInfo, PRNGKey]:
     """High-level implementation of mean-field variational inference update step. Computes the
-    gradient of the elbo and updates the variational parameters.
+    gradient of the elbo and updates the variational parameters."""
 
-    Parameters
-    ----------
-    key : jax.random.PRNGKey
-        _description_
-    mfvi_state : MFVIState
-        _description_
-    logjoint_fn : callable
-        _description_
-    optimizer : _type_
-        _description_
-    batch : _type_
-        _description_
-    n_samples : _type_
-        _description_
-
-    Returns
-    -------
-    _type_
-        _description_
-    """
     meanfield_params = mfvi_state.mu, mfvi_state.rho
     # evaluate elbo and get grad
     (elbo, key), grad = meanfield_elbo(
