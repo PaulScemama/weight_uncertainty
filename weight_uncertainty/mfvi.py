@@ -1,4 +1,4 @@
-from typing import NamedTuple, Tuple, Callable, Any, Iterable, Mapping, Union
+from typing import NamedTuple, Tuple, Callable
 
 import jax
 import jax.numpy as jnp
@@ -7,24 +7,9 @@ from optax import GradientTransformation, OptState
 from jax.random import PRNGKey
 from functools import partial
 
-from jax.typing import ArrayLike
 
-"""
-This is ported from https://github.com/blackjax-devs/blackjax/blob/main/blackjax/types.py
-
-Following the current best practice (https://jax.readthedocs.io/en/latest/jax.typing.html)
-We use:
-- `ArrayLike` and `ArrayLikeTree` to annotate function input,
-- `Array` and `ArrayTree` to annotate function output.
-"""
-
-ArrayTree = Union[jax.Array, Iterable["ArrayTree"], Mapping[Any, "ArrayTree"]]
-ArrayLikeTree = Union[
-    ArrayLike, Iterable["ArrayLikeTree"], Mapping[Any, "ArrayLikeTree"]
-]
-
-
-import tree_utils
+from weight_uncertainty.types import ArrayLikeTree, ArrayTree
+from weight_uncertainty.tree_utils import normal_like_tree
 
 
 # // Structures ----------------------------------------------------------
@@ -127,7 +112,7 @@ def meanfield_sample(
         """Sample from variational distribution once."""
         mu_tree, rho_tree = meanfield_params
         sigma_tree = jax.tree_map(jnp.exp, rho_tree)
-        noise_tree, new_key = tree_utils.normal_like_tree(mu_tree, key)
+        noise_tree, new_key = normal_like_tree(mu_tree, key)
         sample = jax.tree_map(
             lambda mu, sigma, noise: mu + sigma * noise,
             mu_tree,
@@ -233,12 +218,6 @@ def step(
     return new_mfvi_state, MFVIInfo(elbo), key
 
 
-class MeanfieldVI(NamedTuple):
-    init: Callable
-    step: Callable
-    sample: Callable
-
-
 class meanfield_vi:
     init = staticmethod(init)
     step = staticmethod(step)
@@ -266,3 +245,9 @@ class meanfield_vi:
             return cls.sample(key, meanfield_params, n_samples)
 
         return MeanfieldVI(init_fn, step_fn, sample_fn)
+
+
+class MeanfieldVI(NamedTuple):
+    init: Callable
+    step: Callable
+    sample: Callable

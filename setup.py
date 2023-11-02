@@ -6,5 +6,5 @@ setup(
     description="Implementation of 'Weight Uncertainty in Neural Networks'",
     author="Paul Scemama",
     author_email="ptscemama@gmail.com",
-    packages=["weight_uncertainty"]
+    packages=["weight_uncertainty"],
 )
