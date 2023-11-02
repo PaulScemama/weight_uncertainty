@@ -1,5 +1,5 @@
 import jax
-from jax.tree_util import tree_structure, tree_leaves, tree_unflatten
+from jax.tree_util import tree_leaves, tree_structure, tree_unflatten
 
 
 def normal_like_tree(a, key):

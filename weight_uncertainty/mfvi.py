@@ -1,15 +1,14 @@
-from typing import NamedTuple, Tuple, Callable
+from functools import partial
+from typing import Callable, NamedTuple, Tuple
 
 import jax
 import jax.numpy as jnp
 import jax.scipy.stats as stats
-from optax import GradientTransformation, OptState
 from jax.random import PRNGKey
-from functools import partial
+from optax import GradientTransformation, OptState
 
-
-from weight_uncertainty.types import ArrayLikeTree, ArrayTree
 from weight_uncertainty.tree_utils import normal_like_tree
+from weight_uncertainty.types import ArrayLikeTree, ArrayTree
 
 
 class MFVIState(NamedTuple):

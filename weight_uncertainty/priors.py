@@ -1,23 +1,27 @@
 import jax.numpy as jnp
 import jax.scipy.stats as stats
 
-class ScaleMixturePrior:
 
+class ScaleMixturePrior:
     def __init__(self, pi: float, var1: float, var2: float):
         self.pi = pi
         self.var1 = var1
         self.var2 = var2
-    
+
     def __call__(self, weights):
+        # TODO: just do treemap instead of raveling.
         weights_unraveled = weights.ravel()
         # sqrt(var_) since norm.lopdf expects standard deviation
-        gaussian1_log_prob = stats.norm.logpdf(weights_unraveled, 0, jnp.sqrt(self.var1))
-        gaussian2_log_prob = stats.norm.logpdf(weights_unraveled, 0, jnp.sqrt(self.var2))
+        gaussian1_log_prob = stats.norm.logpdf(
+            weights_unraveled, 0, jnp.sqrt(self.var1)
+        )
+        gaussian2_log_prob = stats.norm.logpdf(
+            weights_unraveled, 0, jnp.sqrt(self.var2)
+        )
         return jnp.log(
-            self.pi * jnp.exp(gaussian1_log_prob) + (1 - self.pi) * jnp.exp(gaussian2_log_prob)
+            self.pi * jnp.exp(gaussian1_log_prob)
+            + (1 - self.pi) * jnp.exp(gaussian2_log_prob)
         ).mean()
-    
-
 
 
 # def logprior_fn2(params):

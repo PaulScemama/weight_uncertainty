@@ -2,7 +2,6 @@ import jax
 import jax.numpy as jnp
 
 
-
 # // Negative Log Likelihoods ----------------------------------------
 def nll_fn(task: str, yhat, y):
     # Calculate negative log likelihood
