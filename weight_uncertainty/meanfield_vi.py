@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 import jax.scipy.stats as stats
 from jax.random import PRNGKey
+from jax import jit, vmap
 from optax import GradientTransformation, OptState
 
 from weight_uncertainty.tree_utils import normal_like_tree
@@ -78,11 +79,11 @@ def meanfield_sample(
 
     Parameters
     ----------
+    key : PRNGKey
+        Key for JAX's pseudo-random number generator.
     meanfield_params : ArrayLikeTree
         Values for parameters governing the variational distribution from which to
         sample from.
-    key : PRNGKey
-        Key for JAX's pseudo-random number generator.
     n_samples : int
         Number of samples to draw.
 
@@ -119,7 +120,7 @@ def meanfield_sample(
         return sample, new_key
 
     # vmap across keys
-    sampled_params, new_keys = jax.vmap(meanfield_sample_once, in_axes=[0, None])(
+    sampled_params, new_keys = vmap(meanfield_sample_once, in_axes=[0, None])(
         keys[1:], meanfield_params
     )
     return sampled_params, new_keys[0]
@@ -131,7 +132,7 @@ def meanfield_elbo(
     batch: Tuple[jax.Array],
     logjoint_fn: Callable,
     n_samples: int,
-) -> Tuple[float, PRNGKey]:
+) -> Tuple[Tuple[float, PRNGKey], ArrayTree]:
     """Compute the evidence lower bound for variational parameters and a batch
     of data using the model encompassed in the log joint probability function.
     Additionally compute the gradient of the evidence lower bound with respect
@@ -154,15 +155,16 @@ def meanfield_elbo(
 
     Returns
     -------
-    Tuple[float, PRNGKey]
-        The value for the elbo and a fresh pseudo-random number generator.
+    Tuple[Tuple[float, PRNGKey], ArrayTree]
+        The value for the elbo and a fresh pseudo-random number generator, as
+        well as the gradient of the elbo with respect to the variational parameters.
     """
 
     def elbo(meanfield_params):
         sampled_params, new_key = meanfield_sample(key, meanfield_params, n_samples)
         log_variational = meanfield_logprob(meanfield_params, sampled_params)
         log_joint = logjoint_fn(sampled_params, batch).squeeze()
-        return (log_variational - log_joint), new_key
+        return (log_variational - log_joint).mean(), new_key
 
     (elbo_value, new_key), elbo_grad = jax.value_and_grad(elbo, has_aux=True)(
         meanfield_params
@@ -170,7 +172,6 @@ def meanfield_elbo(
     return (elbo_value, new_key), elbo_grad
 
 
-@partial(jax.jit, static_argnames=["logjoint_fn", "optimizer", "n_samples"])
 def step(
     key: PRNGKey,
     mfvi_state: MFVIState,
@@ -179,11 +180,29 @@ def step(
     optimizer: GradientTransformation,
     n_samples: int,
 ) -> Tuple[MFVIState, MFVIInfo, PRNGKey]:
-    """High-level implementation of mean-field variational inference update step. Computes the
-    gradient of the elbo and updates the variational parameters."""
+    """Mean-field variational inference update step. Computes the
+    gradient of the elbo and updates the variational parameters.
+
+    Parameters
+    ----------
+        key : PRNGKey
+            Key for JAX's pseudo-random number generator.
+        mfvi_state : MFVIState
+            Current MFVI state which contains the current variational parameters as
+            well as the current optimizer state.
+        batch : jax.Array
+            A batch of data.
+        logjoint_fn : Callable
+            Function mapping data and parameter values to the log probability
+            of the joint distribution which represents the probabilistic model.
+        optimizer : GradientTransformation
+            An optax optimizer to update the variational parameters.
+        n_samples : int
+            Number of samples to draw from variational distribution during
+            computations.
+    """
 
     meanfield_params = mfvi_state.mu, mfvi_state.rho
-    # evaluate elbo and get grad
     (elbo, key), grad = meanfield_elbo(
         key, meanfield_params, batch, logjoint_fn, n_samples
     )
@@ -195,6 +214,12 @@ def step(
     return new_mfvi_state, MFVIInfo(elbo), key
 
 
+class MeanfieldVI(NamedTuple):
+    init: Callable
+    step: Callable
+    sample: Callable
+
+
 class meanfield_vi:
     init = staticmethod(init)
     step = staticmethod(step)
@@ -204,15 +229,20 @@ class meanfield_vi:
         cls,
         logjoint_fn: Callable,
         optimizer: GradientTransformation,
+        n_samples: int,
     ):
         def init_fn(position: ArrayLikeTree):
             return cls.init(position, optimizer)
 
+        @jit
         def step_fn(
-            key: PRNGKey, mfvi_state: MFVIState, batch: jax.Array, n_samples: int
+            key: PRNGKey,
+            mfvi_state: MFVIState,
+            batch: jax.Array,
         ):
             return cls.step(key, mfvi_state, batch, logjoint_fn, optimizer, n_samples)
 
+        @partial(jit, static_argnames=["n_samples"])
         def sample_fn(
             key: PRNGKey,
             mfvi_state: MFVIState,
@@ -222,9 +252,3 @@ class meanfield_vi:
             return cls.sample(key, meanfield_params, n_samples)
 
         return MeanfieldVI(init_fn, step_fn, sample_fn)
-
-
-class MeanfieldVI(NamedTuple):
-    init: Callable
-    step: Callable
-    sample: Callable
