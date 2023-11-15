@@ -3,14 +3,14 @@ import jax.numpy as jnp
 import numpy as np
 import weight_uncertainty.meanfield_vi as meanfield_vi
 
-from jax import jit
+from jax import jit, vmap
 import jax.scipy.stats as stats
 import optax
 import plotext as plt
 
 
 def loglikelihood_fn(params, batch):
-    logpdf = stats.norm.logpdf(batch, params[0], 1)
+    logpdf = stats.norm.logpdf(batch, params, 1)
     return jnp.sum(logpdf)
 
 
@@ -20,7 +20,10 @@ def prior_fn(params):
 
 @jit
 def logjoint_fn(params, batch):
-    return prior_fn(params) + loglikelihood_fn(params, batch)
+    def logjoint(params, batch):
+        return prior_fn(params) + loglikelihood_fn(params, batch)
+
+    return vmap(logjoint, in_axes=[0, None])(params, batch)
 
 
 def data_stream(seed, data, batch_size, data_size):
@@ -35,7 +38,7 @@ def data_stream(seed, data, batch_size, data_size):
 
 
 if __name__ == "__main__":
-    optimizer = optax.sgd(1e-3)
+    optimizer = optax.sgd(1e-5)
     meanfield_vi = meanfield_vi.meanfield_vi(logjoint_fn, optimizer, 30)
 
     key = jax.random.PRNGKey(123)
@@ -54,7 +57,9 @@ if __name__ == "__main__":
         mfvi_state, mfvi_info, key = meanfield_vi.step(key, mfvi_state, batch)
 
         if i % 25 == 0:
-            print(f"Elbo at step {i} | {mfvi_info.elbo}")
+            print(
+                f"Elbo at step {i} | {mfvi_info.elbo} | Log variational: {mfvi_info.log_variational} | Log joint: {mfvi_info.log_joint}"
+            )
 
     samples, key = meanfield_vi.sample(key, mfvi_state, 100)
 

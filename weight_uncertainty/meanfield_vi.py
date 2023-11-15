@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 import jax.scipy.stats as stats
 from jax.random import PRNGKey
-from jax import jit, vmap
+from jax import jit
 from optax import GradientTransformation, OptState
 
 from weight_uncertainty.tree_utils import normal_like_tree
@@ -20,6 +20,8 @@ class MFVIState(NamedTuple):
 
 class MFVIInfo(NamedTuple):
     elbo: float
+    log_variational: float
+    log_joint: float
 
 
 def init(
@@ -28,7 +30,7 @@ def init(
 ) -> MFVIState:
     """Initialize the mean-field VI state"""
     mu = jax.tree_map(jnp.zeros_like, position)
-    rho = jax.tree_map(lambda x: -2.0 * jnp.ones_like(x), position)
+    rho = jax.tree_map(lambda x: 1.0 * jnp.ones_like(x), position)
     opt_state = optimizer.init((mu, rho))
     return MFVIState(mu, rho, opt_state)
 
@@ -102,28 +104,16 @@ def meanfield_sample(
     params = mu, rho
     print(meanfield_sample(params, jax.random.PRNGKey(1), 2))
     """
-    keys = jax.random.split(
-        key, n_samples + 1
-    )  # n_sample keys for sampling, one extra to return.
-
-    def meanfield_sample_once(key: PRNGKey, meanfield_params: ArrayLikeTree):
-        """Sample from variational distribution once."""
-        mu_tree, rho_tree = meanfield_params
-        sigma_tree = jax.tree_map(jnp.exp, rho_tree)
-        noise_tree, new_key = normal_like_tree(mu_tree, key)
-        sample = jax.tree_map(
-            lambda mu, sigma, noise: mu + sigma * noise,
-            mu_tree,
-            sigma_tree,
-            noise_tree,
-        )
-        return sample, new_key
-
-    # vmap across keys
-    sampled_params, new_keys = vmap(meanfield_sample_once, in_axes=[0, None])(
-        keys[1:], meanfield_params
+    mu_tree, rho_tree = meanfield_params
+    sigma_tree = jax.tree_map(jnp.exp, rho_tree)
+    noise_tree, key = normal_like_tree(mu_tree, key, n_samples)
+    sample = jax.tree_map(
+        lambda mu, sigma, noise: mu + sigma * noise,
+        mu_tree,
+        sigma_tree,
+        noise_tree,
     )
-    return sampled_params, new_keys[0]
+    return sample, key
 
 
 def meanfield_elbo(
@@ -163,13 +153,17 @@ def meanfield_elbo(
     def elbo(meanfield_params):
         sampled_params, new_key = meanfield_sample(key, meanfield_params, n_samples)
         log_variational = meanfield_logprob(meanfield_params, sampled_params)
-        log_joint = logjoint_fn(sampled_params, batch).squeeze()
-        return (log_variational - log_joint).mean(), new_key
+        log_joint = logjoint_fn(sampled_params, batch).mean()
+        return (log_variational - log_joint).mean(), (
+            new_key,
+            log_variational,
+            log_joint,
+        )
 
-    (elbo_value, new_key), elbo_grad = jax.value_and_grad(elbo, has_aux=True)(
-        meanfield_params
-    )
-    return (elbo_value, new_key), elbo_grad
+    (elbo_value, (new_key, log_variational, log_joint)), elbo_grad = jax.value_and_grad(
+        elbo, has_aux=True
+    )(meanfield_params)
+    return (elbo_value, new_key, log_variational, log_joint), elbo_grad
 
 
 def step(
@@ -203,7 +197,7 @@ def step(
     """
 
     meanfield_params = mfvi_state.mu, mfvi_state.rho
-    (elbo, key), grad = meanfield_elbo(
+    (elbo, key, log_variational, log_joint), grad = meanfield_elbo(
         key, meanfield_params, batch, logjoint_fn, n_samples
     )
     updates, new_opt_state = optimizer.update(
@@ -211,7 +205,7 @@ def step(
     )
     new_mu, new_rho = jax.tree_map(lambda p, u: p + u, meanfield_params, updates)
     new_mfvi_state = MFVIState(new_mu, new_rho, new_opt_state)
-    return new_mfvi_state, MFVIInfo(elbo), key
+    return new_mfvi_state, MFVIInfo(elbo, log_variational, log_joint), key
 
 
 class MeanfieldVI(NamedTuple):
