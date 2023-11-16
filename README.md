@@ -1,3 +1,5 @@
+# Weight Uncertainty
+A JAX-based implementation of Mean-field Variational Inference for Bayesian neural network. 
 
 # Preface
 A probabilistic model is an approximation of nature. In particular, it approximates the process by which our observed data was created. While this approximation may be causally and scientifically inaccurate, it can still provide utility based on the goals of the practitioner. For instance, finding associations through our model can be useful for prediction even when the underlying generative assumptions don't mirror reality. From the perspective of probabilistic modeling, our data $y_{1:N}$ are viewed as realizations of a random process that involves hidden quantities -- termed *hidden variables*. 
