@@ -9,7 +9,7 @@ The reason for this lengthy preface is that a lot of resources on mean-field var
 
 # Mean-field Variational Inference: Motivation
 
-Mean-field variational inference is motivated by problems with analytical inference. We have a probabilistic model of our data $y_{1:N}$:
+We have a probabilistic model of our data $y_{1:N}$:
 
 $$
 p(\theta, y | x) = \underbrace{p(y|\theta, x)}_{\text{observation model}} \overbrace{p(\theta)}^{\text{prior}}
@@ -18,7 +18,7 @@ $$
 We'd like to compute the posterior $p(\theta|y_{1:N}, x_{1:N})$. To do so we use Bayes' theorem,
 
 $$
-p(\theta | y_{1:N}, x_{1:N}) = \frac{p(\theta, y_{1:N}|x_{1:N})}{\underbrace{p(y_{1:N}|x_{1:N})}_{\text{normalizing constant}}} = \frac{p(y|\theta, x)p(\theta)}{\int p(y|\theta, x) \text{d}\theta}
+p(\theta | y_{1:N}, x_{1:N}) = \frac{p(\theta, y_{1:N}|x_{1:N})}{\underbrace{p(y_{1:N}|x_{1:N})}_{\text{normalizing constant}}}
 $$
 
 The normalizing constant involves a large multi-dimensional integration which is generally intractable. Mean-field variational inference turns this "integration problem" into an "optimization problem" which is much easier (computing derivatives is fairly easy, integration if very hard). 
@@ -26,7 +26,15 @@ The normalizing constant involves a large multi-dimensional integration which is
 
 # Mean-field Variational Inference: How It's Done
 
-The basic premise to mean-field variational inference is to propose a _variational distribution_ (that we can deal with easily) and minimize the distance between this distribution and the true posterior $p(\theta|y_{1:N}, x_{1:N})$. We will see that we cannot directly do this because we don't know the true posterior (that's the whole problem)! But we can actually optimize a quantity that measures the distance between the variational distribution and true posterior _up to a constant_. This quantity is called the Evidence Lower Bound (ELBO). 
+From now on I will suppress the $(\cdot)_{1:N}$ to unclutter notation. 
+
+The basic premise of variational inference is to propose a _variational distribution_ $q(\theta)$ (that we can deal with easily) and minimize the KL divergence between this distribution and the true posterior $p(\theta|y, x)$:
+
+$$
+\underset{q}{\text{argmax }} \text{KL}[q(\theta)  ||  p(\theta|y, x)] \tag{1}
+$$
+
+We will see that we cannot directly do this because it ends up involving the computation of the "evidence" $p(y|x)$ (the quantity for which we appeal to approximate inference in the first place!). We instead optimize a related quantity termed the *evidence lower bound* (ELBO). To see why, we expand the KL divergence $(1)$:...
 
 
 
