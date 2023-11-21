@@ -38,7 +38,7 @@ def data_stream(seed, data, batch_size, data_size):
 
 
 if __name__ == "__main__":
-    optimizer = optax.sgd(1e-5)
+    optimizer = optax.sgd(1e-3)
     meanfield_vi = meanfield_vi.meanfield_vi(logjoint_fn, optimizer, 30)
 
     key = jax.random.PRNGKey(123)
