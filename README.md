@@ -3,11 +3,11 @@ A probabilistic model is an approximation of nature. In particular, it approxima
 
 Hidden variables are quantities which we believe played a role in generating our data, but unlike our data which is observed, their particular values are unknown to us. The goal of *inference* is to use our observed data to uncover the likely values of the hidden variables in our model in the form of posterior distributions over those hidden variables. Hidden variables are partitioned into two categories: *global* hidden variables and *local* hidden variables, which we denote $\theta$ and $z_{1:N}$, respectively. Most people are familiar with global hidden variables. These are variables that we assume govern all $N$ elements of our observed data. Models containing local hidden variables are often called "Latent Variable Models". This entire exposition is all to say that this implementation (inspired by the paper "Weight Uncertainty in Neural Networks") only deals with global variable models. For example, the supervised setting where we map inputs $x_{1:N}$ to outputs $y_{1:N}$ with a single neural network. Each "weight" in the neural network is a global variable because it governs all $y_{1:N}$ in the same way.
 
-The reason for this lengthy preface is that a lot of resources on mean-field variational inference (the focus of this repository) speak in terms of both local and global hidden variables, and how we treat them during inference is different.
+The reason for this lengthy preface is that a lot of resources on variational inference (the focus of this repository) speak in terms of both local and global hidden variables, and how we treat them during inference is different.
 
 
 
-# Mean-field Variational Inference: Motivation
+# Variational Inference: Motivation
 
 We have a probabilistic model of our data $y_{1:N}$:
 
@@ -21,10 +21,10 @@ $$
 p(\theta | y_{1:N}, x_{1:N}) = \frac{p(\theta, y_{1:N}|x_{1:N})}{\underbrace{p(y_{1:N}|x_{1:N})}_{\text{normalizing constant}}}
 $$
 
-The normalizing constant involves a large multi-dimensional integration which is generally intractable. Mean-field variational inference turns this "integration problem" into an "optimization problem" which is much easier (computing derivatives is fairly easy, integration if very hard). 
+The normalizing constant involves a large multi-dimensional integration which is generally intractable. Variational inference turns this "integration problem" into an "optimization problem" which is much easier (computing derivatives is fairly easy, integration if very hard). 
 
 
-# Mean-field Variational Inference: How It's Done
+# Variational Inference: How It's Done
 
 From now on I will suppress the $(\cdot)_{1:N}$ to unclutter notation. 
 
@@ -34,7 +34,46 @@ $$
 \underset{q}{\text{argmax }} \text{KL}[q(\theta)  ||  p(\theta|y, x)] \tag{1}
 $$
 
-We will see that we cannot directly do this because it ends up involving the computation of the "evidence" $p(y|x)$ (the quantity for which we appeal to approximate inference in the first place!). We instead optimize a related quantity termed the *evidence lower bound* (ELBO). To see why, we expand the KL divergence $(1)$:...
+We will see that we cannot directly do this because it ends up involving the computation of the "evidence" $p(y|x)$ (the quantity for which we appeal to approximate inference in the first place!). We instead optimize a related quantity termed the *evidence lower bound* (ELBO). To see why, we expand the KL divergence $(1)$,
+
+$$
+\begin{aligned}
+\text{KL}[q(\theta)  ||  p(\theta|y, x)] & = \mathbb{E}_{q(\theta)}[\text{log}\:q(\theta)] - \mathbb{E}_{q(\theta)} [\text{log}\:p(\theta|y, x)] \\
+&= \mathbb{E}_{q(\theta)}[\text{log}\:q(\theta)] - \mathbb{E}_{q(\theta)} [\text{log}\:p(\theta, y| x)] + \underbrace{\text{log}\: p(y|x)}_{\text{intractable}} 
+\end{aligned}
+$$
+
+So instead we optimize the ELBO, which is equivalent to the KL divergence term up to a constant. It is simply the KL divergence term without the intractable evidence, and then negated since we maximize the ELBO while we would minimize the KL divergence.
+
+$$
+\text{ELBO}(q(\theta)) = \mathbb{E}_{q(\theta)} [\text{log}\:p(\theta, y| x)] - \mathbb{E}_{q(\theta)}[\text{log}\:q(\theta)] 
+$$
+
+Further manipulation of the ELBO allows us to gather intuitive insights into how it will lead $q(\theta)$ to behave,
+
+$$
+\begin{aligned}
+\text{ELBO}(q(\theta)) &= \mathbb{E}_{q(\theta)} [\text{log}\:p(\theta, y| x)] - \mathbb{E}_{q(\theta)}[\text{log}\:q(\theta)]  \\
+&= \mathbb{E}_{q(\theta)}[\text{log}\:p(y|x, \theta)] + \mathbb{E}_{q(\theta)}[\text{log}\: p(\theta)]  - \mathbb{E}_{q(\theta)}[\text{log}\:q(\theta)] \\
+& = \underbrace{\mathbb{E}_{q(\theta)}[\text{log}\:p(y|x, \theta)]}_{\text{Expected data loglikelihood}} - \underbrace{\text{KL}[q(\theta)||p(\theta)]}_{\text{Relative entropy}}
+\end{aligned}
+$$
+
+The expected data log likelihood term encourages $q(\theta)$ to place its probability so as to explain the observed data, while the relative entropy term encourages $q(\theta)$ to be close to the prior $p(\theta)$; it keeps $q(\theta)$ from collapsing to a distribution with a single point mass. 
+
+
+# Mean-field Variational Inference
+
+This repository implements a particular form of variational inference, often referred to as mean-field variational inference. *But be careful!* The formulation of the mean-field family and how one optimizes the variational parameters depends on whether the variational distribution is over the local hidden variables or global hidden variables. For the local hidden variable formulation, see [(Margossian et. al, 2023)](https://arxiv.org/abs/2307.11018). For the global variable case, however, mean-field variational inference is often referred to as selecting the following variational distribution over the global hidden variablesthat ([(Coker et. al, 2021)](https://arxiv.org/pdf/2106.07052.pdf) & [(Foong et. al, 2020)](https://proceedings.neurips.cc/paper_files/paper/2020/file/b6dfd41875bc090bd31d0b1740eb5b1b-Paper.pdf)):
+
+$$
+q_\phi(\theta) = \prod_{i=1}^{|\theta|} \mathcal{N}(\theta_i \: | \: \mu_i, \sigma^2_i).
+$$ 
+
+In other words, a multivariate Gaussian with diagonal covariance (also called a fully factorized Gaussian). Some have questioned the expressivity of the mean-field family, and whether it can capture the complex dependencies in a high-dimensional target posterior distribution. For instance, [(Foong et. al, 2020)](https://proceedings.neurips.cc/paper_files/paper/2020/file/b6dfd41875bc090bd31d0b1740eb5b1b-Paper.pdf) look at the failure modes of mean-field variational inference in shallow neural networks. On the other hand, [(Farquhar et. al)](https://oatml.cs.ox.ac.uk/blog/2020/11/29/liberty_or_depth.html) argue that with large neural networks, mean-field variational inference is sufficient. 
+
+# The Reparameterization Trick
+
 
 
 
