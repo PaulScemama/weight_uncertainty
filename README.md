@@ -34,14 +34,13 @@ The normalizing constant involves a large multi-dimensional integration which is
 
 From now on I will suppress the $(\cdot)_{1:N}$ to unclutter notation. 
 
-The basic premise of variational inference is to propose a _variational distribution_ $q(\theta)$ (that we can deal with easily) and minimize the KL divergence between this distribution and the true posterior $p(\theta|y, x)$:
+The basic premise of variational inference is to first propose a _variational family_ $\mathcal{Q}$ of _variational distributions_ $q$ over the hidden variables -- in our case just the global hidden variable $\theta$. In *mean-field* variational inference this variational distribution is indexed by _variational parameters_ $\phi$, so we have $q_{\phi}(\theta)$. We then minimize the KL divergence between this distribution and the true posterior $p(\theta|y, x)$ to learn the variational parameters $\phi$:
 
 $$
-\underset{q}{\text{argmax }} \text{KL}[q(\theta)  ||  p(\theta|y, x)] \tag{1}
+\underset{\phi}{\text{argmax }} \text{KL}[q_{\phi}(\theta)  ||  p(\theta|y, x)] \tag{1}
 $$
 
-We will see that we cannot directly do this because it ends up involving the computation of the "evidence" $p(y|x)$ (the quantity for which we appeal to approximate inference in the first place!). We instead optimize a related quantity termed the *evidence lower bound* (ELBO). To see why, we expand the KL divergence $(1)$,
-
+We will see that we cannot directly do this because it ends up involving the computation of the "evidence" $p(y|x)$ (the quantity for which we appeal to approximate inference in the first place!). We instead optimize a related quantity termed the *evidence lower bound* (ELBO). To see why, we expand the KL divergence $(1)$, noting that we suppress $\phi$ for conciseness,
 
 $$
 \begin{aligned}
@@ -71,13 +70,13 @@ The expected data log likelihood term encourages $q(\theta)$ to place its probab
 
 # Mean-field Variational Inference
 
-This repository implements a particular form of variational inference, often referred to as mean-field variational inference. *But be careful!* The formulation of the mean-field family and how one optimizes the variational parameters depends on whether the variational distribution is over the local hidden variables or global hidden variables. For the local hidden variable formulation, see [(Margossian et. al, 2023)](https://arxiv.org/abs/2307.11018). For the global variable case, however, mean-field variational inference is often referred to as selecting the following variational distribution over the global hidden variablesthat ([(Coker et. al, 2021)](https://arxiv.org/pdf/2106.07052.pdf) & [(Foong et. al, 2020)](https://proceedings.neurips.cc/paper_files/paper/2020/file/b6dfd41875bc090bd31d0b1740eb5b1b-Paper.pdf)):
+This repository implements a particular form of variational inference, often referred to as mean-field variational inference. *But be careful!* The formulation of the mean-field family and how one optimizes the variational parameters depends on whether the variational distribution is over the local hidden variables or global hidden variables. For the local hidden variable formulation, see [(Margossian et. al, 2023)](https://arxiv.org/abs/2307.11018). For the global variable case, however, mean-field variational inference is often referred to as selecting the following variational family (of distributions) over the global hidden variables ([(Coker et. al, 2021)](https://arxiv.org/pdf/2106.07052.pdf) & [(Foong et. al, 2020)](https://proceedings.neurips.cc/paper_files/paper/2020/file/b6dfd41875bc090bd31d0b1740eb5b1b-Paper.pdf)):
 
 $$
-q_\phi(\theta) = \prod_{i=1}^{|\theta|} \mathcal{N}(\theta_i  |  \mu_i, \sigma^2_i).
+\mathcal{Q} = \\{ q  :  q(\theta) = \prod_{i=1}^{|\theta|} \mathcal{N}(\theta_i  |  \mu_i, \sigma^2_i) \\} .
 $$ 
 
-In other words, a multivariate Gaussian with diagonal covariance (also called a fully factorized Gaussian). Some have questioned the expressivity of the mean-field family, and whether it can capture the complex dependencies in a high-dimensional target posterior distribution. For instance, [(Foong et. al, 2020)](https://proceedings.neurips.cc/paper_files/paper/2020/file/b6dfd41875bc090bd31d0b1740eb5b1b-Paper.pdf) look at the failure modes of mean-field variational inference in shallow neural networks. On the other hand, [(Farquhar et. al)](https://oatml.cs.ox.ac.uk/blog/2020/11/29/liberty_or_depth.html) argue that with large neural networks, mean-field variational inference is sufficient. 
+In other words, the family of multivariate Gaussians with diagonal covariance (also called a fully factorized Gaussian). Some have questioned the expressivity of the mean-field family, and whether it can capture the complex dependencies in a high-dimensional target posterior distribution. For instance, [(Foong et. al, 2020)](https://proceedings.neurips.cc/paper_files/paper/2020/file/b6dfd41875bc090bd31d0b1740eb5b1b-Paper.pdf) look at the failure modes of mean-field variational inference in shallow neural networks. On the other hand, [(Farquhar et. al)](https://oatml.cs.ox.ac.uk/blog/2020/11/29/liberty_or_depth.html) argue that with large neural networks, mean-field variational inference is sufficient. 
 
 # The Reparameterization Trick
 
