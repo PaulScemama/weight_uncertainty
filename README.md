@@ -44,24 +44,24 @@ We will see that we cannot directly do this because it ends up involving the com
 
 $$
 \begin{aligned}
-\text{KL}[q(\theta)||p(\theta|y, x)] & = \mathbb{E}_{q(\theta)}[\text{log} q(\theta)] - \mathbb{E} _{q(\theta)} [\text{log}p(\theta|y, x)] \\
-&= \mathbb{E} _{q(\theta)}[\text{log}q(\theta)] - \mathbb{E} _{q(\theta)} [\text{log}p(\theta, y| x)] + \underbrace{\text{log} p(y|x)} _{\text{intractable}} 
+\text{KL}[q(\theta)||p(\theta|y, x)] & = \mathbb{E}_{q(\theta)}[\text{log}  \\, q(\theta)] - \mathbb{E} _{q(\theta)} [\text{log}  \\, p(\theta|y, x)] \\
+&= \mathbb{E} _{q(\theta)}[\text{log}  \\, q(\theta)] - \mathbb{E} _{q(\theta)} [\text{log}  \\, p(\theta, y| x)] + \underbrace{\text{log}  \\, p(y|x)} _{\text{intractable}} 
 \end{aligned}
 $$
 
 So instead we optimize the ELBO, which is equivalent to the KL divergence term up to a constant. It is simply the KL divergence term without the intractable evidence, and then negated since we maximize the ELBO while we would minimize the KL divergence.
 
 $$
-\text{ELBO}(q(\theta)) = \mathbb{E} _{q(\theta)} [\text{log}p(\theta, y| x)] - \mathbb{E} _{q(\theta)}[\text{log}q(\theta)] 
+\text{ELBO}(q(\theta)) = \mathbb{E} _{q(\theta)} [\text{log}  \\, p(\theta, y| x)] - \mathbb{E} _{q(\theta)}[\text{log}  \\, q(\theta)] 
 $$
 
 Further manipulation of the ELBO allows us to gather intuitive insights into how it will lead $q(\theta)$ to behave,
 
 $$
 \begin{aligned}
-\text{ELBO}(q(\theta)) &= \mathbb{E} _{q(\theta)} [\text{log}p(\theta, y| x)] - \mathbb{E} _{q(\theta)}[\text{log}q(\theta)]  \\
-&= \mathbb{E} _{q(\theta)}[\text{log}p(y|x, \theta)] + \mathbb{E} _{q(\theta)}[\text{log} p(\theta)]  - \mathbb{E} _{q(\theta)}[\text{log}q(\theta)] \\
-& = \underbrace{\mathbb{E} _{q(\theta)}[\text{log}p(y|x, \theta)]} _{\text{Expected data loglikelihood}} - \underbrace{\text{KL}[q(\theta)||p(\theta)]} _{\text{Relative entropy}}
+\text{ELBO}(q(\theta)) &= \mathbb{E} _{q(\theta)} [\text{log}  \\, p(\theta, y| x)] - \mathbb{E} _{q(\theta)}[\text{log}  \\, q(\theta)]  \\
+&= \mathbb{E} _{q(\theta)}[\text{log}  \\, p(y|x, \theta)] + \mathbb{E} _{q(\theta)}[\text{log} \\, p(\theta)]  - \mathbb{E} _{q(\theta)}[\text{log}  \\, q(\theta)] \\
+& = \underbrace{\mathbb{E} _{q(\theta)}[\text{log}  \\, p(y|x, \theta)]} _{\text{Expected data loglikelihood}} - \underbrace{\text{KL}[q(\theta)||p(\theta)]} _{\text{Relative entropy}}
 \end{aligned}
 $$
 
