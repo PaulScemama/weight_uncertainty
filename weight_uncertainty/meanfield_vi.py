@@ -6,24 +6,10 @@ import jax.numpy as jnp
 import jax.scipy.stats as stats
 from jax import jit
 from jax.random import PRNGKey
-from jax.tree_util import tree_leaves, tree_structure, tree_unflatten
 from optax import GradientTransformation, OptState
 
 from weight_uncertainty.types import ArrayLikeTree, ArrayTree
-
-
-# Useful PyTree Utility: modified from https://github.com/google-research/google-research/blob/master/bnn_hmc/utils/tree_utils.py
-# to allow for `n_samples`` to be taken.
-def normal_like_tree(a, key, n_samples):
-    treedef = tree_structure(a)
-    num_vars = len(tree_leaves(a))
-    all_keys = jax.random.split(key, num=(num_vars + 1))
-    noise = jax.tree_map(
-        lambda p, k: jax.random.normal(k, shape=(n_samples,) + p.shape),
-        a,
-        tree_unflatten(treedef, all_keys[1:]),
-    )
-    return noise, all_keys[0]
+from weight_uncertainty.utils import normal_like_tree
 
 
 # Named tuple classes
