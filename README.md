@@ -34,13 +34,13 @@ The normalizing constant involves a large multi-dimensional integration which is
 
 From now on I will suppress the $(\cdot)_{1:N}$ to unclutter notation. 
 
-The basic premise of variational inference is to first propose a _variational family_ $\mathcal{Q}$ of _variational distributions_ $q$ over the hidden variables -- in our case just the global hidden variable $\theta$. In *mean-field* variational inference this variational distribution is indexed by _variational parameters_ $\phi$, so we have $q_{\phi}(\theta)$. We then minimize the KL divergence between this distribution and the true posterior $p(\theta|y, x)$ to learn the variational parameters $\phi$:
+The basic premise of variational inference is to first propose a _variational family_ $\mathcal{Q}$ of _variational distributions_ $q$ over the hidden variables -- in our case just the global hidden variable $\theta$. In *mean-field* variational inference this variational distribution is indexed by _variational parameters_ $\gamma$, so we have $q_{\gamma}(\theta)$. We then minimize the KL divergence between this distribution and the true posterior $p(\theta|y, x)$ to learn the variational parameters $\gamma$:
 
 $$
-\underset{\phi}{\text{argmax }} \text{KL}[q_{\phi}(\theta)  ||  p(\theta|y, x)] \tag{1}
+\underset{\gamma}{\text{argmax }} \text{KL}[q_{\gamma}(\theta)  ||  p(\theta|y, x)] \tag{1}
 $$
 
-We will see that we cannot directly do this because it ends up involving the computation of the "evidence" $p(y|x)$ (the quantity for which we appeal to approximate inference in the first place!). We instead optimize a related quantity termed the *evidence lower bound* (ELBO). To see why, we expand the KL divergence $(1)$, noting that we suppress $\phi$ for conciseness,
+We will see that we cannot directly do this because it ends up involving the computation of the "evidence" $p(y|x)$ (the quantity for which we appeal to approximate inference in the first place!). We instead optimize a related quantity termed the *evidence lower bound* (ELBO). To see why, we expand the KL divergence $(1)$, noting that we suppress $\gamma$ for conciseness,
 
 $$
 \begin{aligned}
@@ -80,9 +80,55 @@ In other words, the family of multivariate Gaussians with diagonal covariance (a
 
 # The Reparameterization Trick
 
+We would like to take the gradient of the ELBO with respect to the variational parameters $\gamma$,
+
+$$
+\nabla_\gamma \mathbb{E}_ {q_ \gamma(\theta)}[\overbrace{\text{log} \\, p(\theta, y|x) - \text{log} \\, q_ \gamma(\theta)}^{f_ \gamma(\theta)}]. \tag{2}
+$$ 
+
+## Preliminary: Monte Carlo Integration
+
+[Monte Carlo integration](https://en.wikipedia.org/wiki/Monte_Carlo_method) allows us to get an unbiased approximation of an expectation of a function by sampling from the distribution the expectation is with respect to:
+
+$$
+\mathbb{E}_ {p_ \theta} [f(x)] \approx \frac{1}{N} \sum_{n=1}^N f(x^{(n)}) \\; \text{ with } \\; x^{(n)} \sim p_ \theta(x)
+$$
+
+## The General Way 
+
+Let us expand $(2)$,
+
+$$
+\begin{align}
+\nabla_\gamma \mathbb{E}_ {q_ \gamma(\theta)}[\overbrace{\text{log} \\, p(\theta, y|x) - \text{log} \\, q_ \gamma(\theta)}^{f_ \gamma(\theta)}] &= \nabla_ {\gamma} \int \text{d}\theta \\, q_ {\gamma}(\theta) f_ \gamma(\theta) \\
+&\overset{(i)}{=} \int \text{d}\theta \\,  \\{ (\nabla_\gamma q_ \gamma(\theta)) f_ \gamma(\theta) + q_ \gamma(\theta)(\nabla \gamma f_ \gamma(\theta) \\} \\
+&\overset{(ii)}{=} \underbrace{\int \text{d}\theta \\, ( \overbrace{\nabla_\gamma q_ \gamma(\theta)}^{\text{not a density}})f_ \gamma(\theta)}_ {\text{cannot monte carlo}} + \underbrace{\int \text{d}\theta \\, q_ \gamma(\theta)(\nabla_\gamma \\, f_ \gamma(\theta)}_{\text{can monte carlo}} \tag{3}
+\end{align}
+$$
+
+where in $(i)$ we use the chain rule as well as the [Leibniz rule](https://en.wikipedia.org/wiki/Leibniz_integral_rule) to push the derivative inside the integral and in $(ii)$ we simply split the integral. As noted, the first integral in the last line cannot be approximated via Monte Carlo so we have a problem. We need to somehow mold the expression so that we can express it as $\mathbb{E}_ {q_ \gamma(\theta)} [\dots]$. Here is how we do it:
+
+1. Note the identity: $\nabla_\gamma \\, q_ \gamma(\theta) = q_ \gamma(\theta) \nabla_\gamma \\, \text{log} \\, q_ \gamma(\theta)$
+2. Plug the new expression for $\nabla_\gamma \\, q_ \gamma(\theta)$ into $(3)$, factor and rearrange to get $\mathbb{E}_ {q_ \gamma(\theta)} [\dots]$...
+
+$$
+\begin{align}
+\int \text{d}\theta \\, (\nabla_\gamma \\, q_ \gamma(\theta))f_ \gamma(\theta) + \int \text{d}\theta \\, q_ \gamma(\theta)(\nabla_\gamma f_ \gamma(\theta) &= \int \text{d}\theta \\, q_ \gamma(\theta)(\nabla_\gamma \text{log} \\, q_ \gamma(\theta) ) \\, f_ \gamma(\theta) + \int \text{d}\theta \\, q_ \gamma(\theta)(\nabla_\gamma f_ \gamma(\theta) \\
+&= \int \text{d}\theta \\, q_ \gamma(\theta) \\{  (\nabla_\gamma \text{log} \\, q_ \gamma(\theta) ) \\, f_ \gamma(\theta) + \nabla_\gamma f_ \gamma(\theta)   \\} \\
+& = \mathbb{E}_ {q_ \gamma(\theta)} [(\nabla_\gamma \text{log} \\, q_ \gamma(\theta) ) \\, f_ \gamma(\theta) + \nabla_\gamma f_ \gamma(\theta)] \tag{4}
+\end{align}
+$$
+
+We can use Monte Carlo to approximate $(4)$ now! This type of estimator for the gradient of the ELBO is called by many names: the score function estimator, the REINFORCE estimator, the likelihood ratio estimator. Unfortunately, this estimator can have severely high variance and in some cases is even unusable. Fortunately, for some types of variational distributions (e.g. Gaussian), we can use the *reparameterization trick* to come up with an estimator with drastically better variance. 
 
 
 
+
+
+
+# Resources
+
+[Monte Carlo Gradient Estimation in Machine Learning](https://arxiv.org/pdf/1906.10652.pdf)
 
 
 
