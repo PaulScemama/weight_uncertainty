@@ -94,7 +94,7 @@ $$
 \mathbb{E}_ {p_ \theta} [f(x)] \approx \frac{1}{N} \sum_{n=1}^N f(x^{(n)}) \\; \text{ with } \\; x^{(n)} \sim p_ \theta(x)
 $$
 
-## The General Way 
+## The General Way (Not Reparameterization Trick)
 
 Let us expand $(2)$,
 
@@ -121,6 +121,35 @@ $$
 
 We can use Monte Carlo to approximate $(4)$ now! This type of estimator for the gradient of the ELBO is called by many names: the score function estimator, the REINFORCE estimator, the likelihood ratio estimator. Unfortunately, this estimator can have severely high variance and in some cases is even unusable. Fortunately, for some types of variational distributions (e.g. Gaussian), we can use the *reparameterization trick* to come up with an estimator with drastically better variance. 
 
+## The Reparameterization Trick (For Real This Time)
+Let's recall what we want to do: like in $(2)$ we want to take the following derivative
+
+$$
+\nabla_ \gamma \mathbb{E}_ {q_ \gamma(\theta)} [f_ \gamma (\theta)]. \tag{5}
+$$
+
+We just saw how we can find a Monte Carlo estimator for this but the variance of such an estimator can be unusably high. The reparameterization trick ends up making the estimator have much less variance; however, it requires more assumptions (i.e. specific forms of variational distribution). The idea of reparameterization is that we can come up with an equivalent representation of a random quantity but this new representation allows us to do cool and good things. So suppose we can express $\theta \sim q_ \gamma(\theta)$ as a *deterministic* variable $\theta = g_ \gamma(\epsilon)$ where $\epsilon$ is an auxiliary variable with independent marginal distribution $p(\epsilon)$ and $g_ \gamma(\cdot)$ is some deterministic function parameterized by $\gamma$. For example, we can actually do this with a normally distributed random variable: 
+
+$$
+\begin{align}
+&\theta \sim q_ \gamma(\theta) = \text{Normal}(\theta|\gamma) = \text{Normal}(\theta|\mu, \sigma^2) \\
+&\downarrow\\
+&\theta = \mu + \sigma \epsilon \\; \text{ where } \\; \epsilon \sim p(\epsilon) = \text{Normal}(\epsilon|0, 1). \tag{6}
+\end{align}
+$$
+
+Now why is this useful? Well let us go through taking the derivative in $(5)$ but with the assumption that we can reparameterize $\theta$ as a deterministic function of an auxiliary variable governed by independent marginal distribution:
+
+$$
+\begin{align}
+\nabla_ \gamma \mathbb{E}_ {q_ \gamma(\theta)} [f_ \gamma (\theta)] &\overset{(i)}{=} \nabla_ \gamma \mathbb{E}_ {p(\epsilon)} [f_ \gamma(g_ \gamma(\epsilon))] \\
+&= \nabla_ \gamma \int \text{d}{\epsilon} \\, p(\epsilon) \\{ f_ \gamma(g_ \gamma(\epsilon)) \\} \\
+&= \int \text{d}{\epsilon} \\, p(\epsilon) \\{\nabla_ \gamma f_ \gamma(g_ \gamma(\epsilon)) \\} \\
+&= \mathbb{E}_ {p(\epsilon)}[\nabla_ \gamma f_ \gamma(g_ \gamma(\epsilon))] \tag{7}
+\end{align}
+$$
+
+We can use Monte Carlo to approximate $(7)$ and has [smaller variance](https://arxiv.org/pdf/1809.10330.pdf) than the score function estimator we saw earlier! For our use case, because we have a variational family of diagonal multivariate Gaussian distributions we can indeed employ the reparameterization trick. 
 
 
 
