@@ -78,12 +78,7 @@ def loglikelihood_fn(params, data):
     return jnp.sum(y * model.apply(params, X))
 
 
-@jax.jit
-def logjoint_fn(params, batch):
-    def logjoint(params, batch):
-        return logprior_fn(params) + 100 * loglikelihood_fn(params, batch)
-
-    return jax.vmap(logjoint, in_axes=[0, None])(params, batch)
+loglikelihood_fn = jax.vmap(loglikelihood_fn, in_axes=[0, None])
 
 
 def compute_predictions(sampled_params, X):
@@ -107,9 +102,14 @@ def compute_accuracy(outputs, y):
 import weight_uncertainty.meanfield_vi as mfvi
 
 
-for lr in [1e-5]:
+for lr in [1e-3]:
     optimizer = optax.sgd(lr)
-    meanfield_vi = mfvi.meanfield_vi(logjoint_fn, optimizer, 30)
+    meanfield_vi = mfvi.meanfield_vi(
+        loglikelihood_fn,
+        optimizer,
+        30,
+        logprior_name="unit_gaussian",
+    )
 
     key = jax.random.PRNGKey(123)
     key, subkey = jax.random.split(key)
@@ -127,7 +127,7 @@ for lr in [1e-5]:
     steps = []
 
     print(f"LEARNING RATE: {lr}")
-    for i in range(50_000):
+    for i in range(5_000):
         batch = next(batches)
         mfvi_state, mfvi_info, key = meanfield_vi.step(key, mfvi_state, batch)
 

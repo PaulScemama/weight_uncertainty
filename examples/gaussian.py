@@ -14,16 +14,11 @@ def loglikelihood_fn(params, batch):
     return jnp.sum(logpdf)
 
 
+loglikelihood_fn = jax.vmap(loglikelihood_fn, in_axes=[0, None])
+
+
 def prior_fn(params):
     return stats.norm.logpdf(params[0], 10, 2)
-
-
-@jit
-def logjoint_fn(params, batch):
-    def logjoint(params, batch):
-        return prior_fn(params) + loglikelihood_fn(params, batch)
-
-    return vmap(logjoint, in_axes=[0, None])(params, batch)
 
 
 def data_stream(seed, data, batch_size, data_size):
@@ -39,7 +34,13 @@ def data_stream(seed, data, batch_size, data_size):
 
 if __name__ == "__main__":
     optimizer = optax.sgd(1e-3)
-    meanfield_vi = meanfield_vi.meanfield_vi(logjoint_fn, optimizer, 30)
+    meanfield_vi = meanfield_vi.meanfield_vi(
+        loglikelihood_fn,
+        optimizer,
+        30,
+        logprior_name="unit_gaussian",
+        weight_decay=5,
+    )
 
     key = jax.random.PRNGKey(123)
     pos = jnp.array([1.0])
