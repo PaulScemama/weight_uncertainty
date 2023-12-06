@@ -1,18 +1,16 @@
-from functools import partial
 from typing import Callable, NamedTuple, Tuple
 
 import jax
-import optax
 import jax.numpy as jnp
 import jax.scipy.stats as stats
-from jax import jit
+import optax
 from jax.random import PRNGKey
 from optax import GradientTransformation, OptState
 
-
 from weight_uncertainty.types import ArrayLikeTree, ArrayTree
 from weight_uncertainty.utils import normal_like_tree
-from weight_uncertainty.kl import unit_gaussian_kl, isotropic_gaussian_kl
+
+__all__ = ["MFVIState", "init", "meanfield_logprob", "meanfield_sample", "step"]
 
 
 # Named tuple classes
@@ -26,12 +24,6 @@ class MFVIInfo(NamedTuple):
     elbo: float
     log_variational: float
     log_joint: float
-
-
-class MeanfieldVI(NamedTuple):
-    init: Callable
-    step: Callable
-    sample: Callable
 
 
 # Core functions
@@ -186,86 +178,3 @@ def step(
     new_mu, new_rho = optax.apply_updates(meanfield_params, updates)
     new_mfvi_state = MFVIState(new_mu, new_rho, new_opt_state)
     return new_mfvi_state, MFVIInfo(elbo_value, log_likelihood, kl), key
-
-
-# Interface
-class meanfield_vi:
-    init = staticmethod(init)
-    step = staticmethod(step)
-    sample = staticmethod(meanfield_sample)
-
-    def __new__(
-        cls,
-        loglikelihood_fn: Callable,
-        optimizer: GradientTransformation,
-        n_samples: int,
-        logprior_fn: Callable = None,
-        logprior_name: str = None,
-        weight_decay: float = None,
-    ):
-        kl_fn = _create_kl_fn(logprior_fn, logprior_name, weight_decay)
-
-        def init_fn(position: ArrayLikeTree):
-            return cls.init(position, optimizer)
-
-        @jit
-        def step_fn(
-            key: PRNGKey,
-            mfvi_state: MFVIState,
-            batch: jax.Array,
-        ):
-            return cls.step(
-                key, mfvi_state, batch, loglikelihood_fn, kl_fn, optimizer, n_samples
-            )
-
-        @partial(jit, static_argnames=["n_samples"])
-        def sample_fn(
-            key: PRNGKey,
-            mfvi_state: MFVIState,
-            n_samples: int,
-        ):
-            meanfield_params = mfvi_state.mu, mfvi_state.rho
-            return cls.sample(key, meanfield_params, n_samples)
-
-        return MeanfieldVI(init_fn, step_fn, sample_fn)
-
-
-def _create_kl_fn(logprior_fn, logprior_name, weight_decay):
-    if (logprior_fn is None) == (logprior_name is None):
-        raise ValueError(
-            "Either `logprior_fn` or `logprior_name` must be specified, but not both."
-        )
-
-    if logprior_name:
-        if logprior_name == "unit_gaussian":
-            if weight_decay is not None:
-                print(
-                    f"Warning: ignoring `weight_decay` argument because 'unit_gaussian' prior doesn't take it as input."
-                )
-            return lambda meanfield_params, sampled_params: unit_gaussian_kl(
-                meanfield_params
-            )
-
-        elif logprior_name == "isotropic_gaussian":
-            if weight_decay is None:
-                raise ValueError(
-                    "`weight_decay` must be specified if using isotropic gaussian prior."
-                )
-            return lambda meanfield_params, sampled_params: partial(
-                isotropic_gaussian_kl, wd=weight_decay
-            )(meanfield_params)
-
-        else:
-            raise ValueError(
-                f"`logprior_name` must be either 'unit_gaussian' or 'isotropic_gaussian' but is {logprior_name}."
-            )
-
-    # if logprior_fn
-    else:
-
-        def kl_fn(meanfield_params, sampled_params):
-            return meanfield_logprob(meanfield_params, sampled_params) - logprior_fn(
-                sampled_params
-            )
-
-        return kl_fn

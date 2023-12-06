@@ -1,10 +1,10 @@
 import jax
-
-import optax
-
-from datasets import load_dataset
+import jax.numpy as jnp
 import numpy as np
+import optax
+from datasets import load_dataset
 
+from weight_uncertainty.interface import meanfield_vi
 
 mnist_data = load_dataset("mnist")
 data_train, data_test = mnist_data["train"], mnist_data["test"]
@@ -14,8 +14,6 @@ y_train = np.array([example["label"] for example in data_train])
 
 X_test = np.stack([np.array(example["image"]) for example in data_test])
 y_test = np.array([example["label"] for example in data_test])
-
-import jax.numpy as jnp
 
 
 def one_hot_encode(x, k):
@@ -78,9 +76,6 @@ def loglikelihood_fn(params, data):
     return jnp.sum(y * model.apply(params, X))
 
 
-loglikelihood_fn = jax.vmap(loglikelihood_fn, in_axes=[0, None])
-
-
 def compute_predictions(sampled_params, X):
     out = model.apply(sampled_params, X)
     return out
@@ -99,12 +94,9 @@ def compute_accuracy(outputs, y):
     return jnp.mean(predicted_class == target_class)
 
 
-import weight_uncertainty.meanfield_vi as mfvi
-
-
 for lr in [1e-3]:
     optimizer = optax.sgd(lr)
-    meanfield_vi = mfvi.meanfield_vi(
+    meanfield_vi = meanfield_vi(
         loglikelihood_fn,
         optimizer,
         30,

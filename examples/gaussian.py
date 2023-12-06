@@ -1,9 +1,8 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-import weight_uncertainty.meanfield_vi as meanfield_vi
+from weight_uncertainty.interface import meanfield_vi
 
-from jax import jit, vmap
 import jax.scipy.stats as stats
 import optax
 import plotext as plt
@@ -12,13 +11,6 @@ import plotext as plt
 def loglikelihood_fn(params, batch):
     logpdf = stats.norm.logpdf(batch, params, 1)
     return jnp.sum(logpdf)
-
-
-loglikelihood_fn = jax.vmap(loglikelihood_fn, in_axes=[0, None])
-
-
-def prior_fn(params):
-    return stats.norm.logpdf(params[0], 10, 2)
 
 
 def data_stream(seed, data, batch_size, data_size):
@@ -34,7 +26,7 @@ def data_stream(seed, data, batch_size, data_size):
 
 if __name__ == "__main__":
     optimizer = optax.sgd(1e-3)
-    meanfield_vi = meanfield_vi.meanfield_vi(
+    meanfield_vi = meanfield_vi(
         loglikelihood_fn,
         optimizer,
         30,

@@ -1,7 +1,8 @@
 import jax
 import jax.numpy as jnp
-
 from jax.tree_util import tree_leaves
+
+__all__ = ["unit_gaussian_kl", "isotropic_gaussian_kl"]
 
 
 def unit_gaussian_kl(meanfield_params):
