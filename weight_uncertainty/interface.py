@@ -8,6 +8,7 @@ from optax import GradientTransformation
 from weight_uncertainty.core import *
 from weight_uncertainty.kl import *
 from weight_uncertainty.types import ArrayLikeTree
+import warnings
 
 
 class MeanfieldVI(NamedTuple):
@@ -37,7 +38,6 @@ class meanfield_vi:
         def init_fn(position: ArrayLikeTree):
             return cls.init(position, optimizer)
 
-        @jit
         def step_fn(
             key: PRNGKey,
             mfvi_state: MFVIState,
@@ -59,42 +59,57 @@ class meanfield_vi:
         return MeanfieldVI(init_fn, step_fn, sample_fn)
 
 
-def _create_kl_fn(logprior_fn, logprior_name, weight_decay):
+# ------------------------ Helpers --------------------------------------------------
+def _create_kl_fn(
+    logprior_fn: Callable = None,
+    logprior_name: str = None,
+    weight_decay: float = None,
+):
+    _check_arg_values(logprior_fn, logprior_name, weight_decay)
+
+    # logprior_name is passed
+    if logprior_name:
+        if logprior_name == "unit_gaussian":
+            return lambda meanfield_params, _: unit_gaussian_kl(meanfield_params)
+
+        elif logprior_name == "isotropic_gaussian":
+            return lambda meanfield_params, _: partial(
+                isotropic_gaussian_kl, wd=weight_decay
+            )(meanfield_params)
+
+    # logprior_fn is passed
+    else:
+        return _approx_kl_fn(logprior_fn)
+
+
+def _check_arg_values(logprior_fn, logprior_name, weight_decay):
     if (logprior_fn is None) == (logprior_name is None):
         raise ValueError(
             "Either `logprior_fn` or `logprior_name` must be specified, but not both."
         )
 
-    if logprior_name:
-        if logprior_name == "unit_gaussian":
-            if weight_decay is not None:
-                print(
-                    f"Warning: ignoring `weight_decay` argument because 'unit_gaussian' prior doesn't take it as input."
-                )
-            return lambda meanfield_params, sampled_params: unit_gaussian_kl(
-                meanfield_params
-            )
+    if (logprior_name == "isotropic_gaussian") and (weight_decay is None):
+        raise ValueError(
+            "`weight_decay` must be specified if using isotropic gaussian prior."
+        )
 
-        elif logprior_name == "isotropic_gaussian":
-            if weight_decay is None:
-                raise ValueError(
-                    "`weight_decay` must be specified if using isotropic gaussian prior."
-                )
-            return lambda meanfield_params, sampled_params: partial(
-                isotropic_gaussian_kl, wd=weight_decay
-            )(meanfield_params)
+    if (logprior_name is not None) and (
+        logprior_name not in ["unit_gaussian", "isotropic_gaussian"]
+    ):
+        raise ValueError(
+            f"`logprior_name` must be either 'unit_gaussian' or 'isotropic_gaussian' but is {logprior_name}."
+        )
 
-        else:
-            raise ValueError(
-                f"`logprior_name` must be either 'unit_gaussian' or 'isotropic_gaussian' but is {logprior_name}."
-            )
+    if (logprior_name == "unit_gaussian") and (weight_decay is not None):
+        warnings.warn(
+            "ignoring `weight_decay` argument because 'unit_gaussian' prior doesn't take it as input."
+        )
 
-    # if logprior_fn
-    else:
 
-        def kl_fn(meanfield_params, sampled_params):
-            return meanfield_logprob(meanfield_params, sampled_params) - logprior_fn(
-                sampled_params
-            )
+def _approx_kl_fn(logprior_fn):
+    def kl(meanfield_params, sampled_params):
+        return meanfield_logprob(meanfield_params, sampled_params) - logprior_fn(
+            sampled_params
+        )
 
-        return kl_fn
+    return kl

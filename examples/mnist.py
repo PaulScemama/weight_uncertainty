@@ -4,16 +4,9 @@ import numpy as np
 import optax
 from datasets import load_dataset
 
+import flax.linen as nn
+import jax.scipy.stats as stats
 from weight_uncertainty.interface import meanfield_vi
-
-mnist_data = load_dataset("mnist")
-data_train, data_test = mnist_data["train"], mnist_data["test"]
-
-X_train = np.stack([np.array(example["image"]) for example in data_train])
-y_train = np.array([example["label"] for example in data_train])
-
-X_test = np.stack([np.array(example["image"]) for example in data_test])
-y_test = np.array([example["label"] for example in data_test])
 
 
 def one_hot_encode(x, k):
@@ -44,13 +37,6 @@ def data_stream(seed, data, batch_size, data_size):
             yield data[0][batch_idx], data[1][batch_idx]
 
 
-X_train, y_train, N_train = prepare_data(X_train, y_train)
-X_test, y_test, N_test = prepare_data(X_test, y_test)
-
-import flax.linen as nn
-import jax.scipy.stats as stats
-
-
 class NN(nn.Module):
     @nn.compact
     def __call__(self, x):
@@ -58,9 +44,6 @@ class NN(nn.Module):
         x = nn.relu(x)
         x = nn.Dense(features=10)(x)
         return nn.log_softmax(x)
-
-
-model = NN()
 
 
 def logprior_fn(params):
@@ -94,8 +77,22 @@ def compute_accuracy(outputs, y):
     return jnp.mean(predicted_class == target_class)
 
 
-for lr in [1e-3]:
-    optimizer = optax.sgd(lr)
+if __name__ == "__main__":
+    # -------------------------------- Data --------------------------------
+    mnist_data = load_dataset("mnist")
+    data_train, data_test = mnist_data["train"], mnist_data["test"]
+
+    X_train = np.stack([np.array(example["image"]) for example in data_train])
+    y_train = np.array([example["label"] for example in data_train])
+
+    X_test = np.stack([np.array(example["image"]) for example in data_test])
+    y_test = np.array([example["label"] for example in data_test])
+
+    X_train, y_train, N_train = prepare_data(X_train, y_train)
+    X_test, y_test, N_test = prepare_data(X_test, y_test)
+
+    model = NN()
+    optimizer = optax.sgd(1e-3)
     meanfield_vi = meanfield_vi(
         loglikelihood_fn,
         optimizer,

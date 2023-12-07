@@ -22,8 +22,8 @@ class MFVIState(NamedTuple):
 
 class MFVIInfo(NamedTuple):
     elbo: float
-    log_variational: float
-    log_joint: float
+    nll: float
+    kl: float
 
 
 # Core functions
@@ -116,7 +116,7 @@ def meanfield_sample(
         sigma_tree,
         noise_tree,
     )
-    return sample, key
+    return sample
 
 
 def step(
@@ -156,25 +156,23 @@ def step(
     """
     meanfield_params = mfvi_state.mu, mfvi_state.rho
 
-    def elbo(meanfield_params):
-        sampled_params, new_key = meanfield_sample(key, meanfield_params, n_samples)
-        log_likelihood = loglikelihood_fn(sampled_params, batch).mean()
-        kl = kl_fn(meanfield_params, sampled_params)
-        return (-log_likelihood + kl).mean(), (
-            new_key,
-            log_likelihood,
-            kl,
-        )
+    # negative elbo
+    def nelbo(meanfield_params):
+        sampled_params = meanfield_sample(key, meanfield_params, n_samples)
+        nll = -loglikelihood_fn(sampled_params, batch).mean()  # negative log likelihood
+        kl = kl_fn(meanfield_params, sampled_params)  # kl penalty
+        elbo = (nll + kl).mean()
+        return elbo, (nll, kl)
 
     # Get elbo and gradients w.r.t variational parameters mu and rho
-    (elbo_value, (key, log_likelihood, kl)), elbo_grad = jax.value_and_grad(
-        elbo, has_aux=True
-    )(meanfield_params)
+    nelbo_grad_fn = jax.value_and_grad(nelbo, has_aux=True)
+
+    (nelbo_val, (nll, kl)), nelbo_grad = nelbo_grad_fn(meanfield_params)
 
     # Update variational parameters and mfvi State and Info
     updates, new_opt_state = optimizer.update(
-        elbo_grad, mfvi_state.opt_state, meanfield_params
+        nelbo_grad, mfvi_state.opt_state, meanfield_params
     )
     new_mu, new_rho = optax.apply_updates(meanfield_params, updates)
     new_mfvi_state = MFVIState(new_mu, new_rho, new_opt_state)
-    return new_mfvi_state, MFVIInfo(elbo_value, log_likelihood, kl), key
+    return new_mfvi_state, MFVIInfo(nelbo_val, nll, kl)
