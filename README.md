@@ -1,6 +1,6 @@
 # Disclaimer
 
-This repository is heavily inspired by [Blackjax's](https://github.com/blackjax-devs/blackjax). In particular, the interface and  abstractions. This was an exercise for me to implement an inference algorithm in JAX. It also allowed me to ramble a bit about variational inference and how Bayesian neural networks fit into the variational inference framework. 
+This repository is inspired by [Blackjax's](https://github.com/blackjax-devs/blackjax). In particular, the interface. I have also contributed to Blackjax and used some of the things I've learned here to incorporate in there. This was an exercise for me to implement an inference algorithm in JAX. It also allowed me to ramble a bit about variational inference and how Bayesian neural networks fit into the variational inference framework. 
 
 - Be sure to check the amazing [Blackjax](https://github.com/blackjax-devs/blackjax) library out!
 - Be sure to checkout the seminal paper from [(Blundell et. al, 2015)](https://arxiv.org/pdf/1505.05424.pdf) upon which this repository is also inspired by.
