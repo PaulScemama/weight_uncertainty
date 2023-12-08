@@ -79,9 +79,9 @@ if __name__ == "__main__":
     optimizer = optax.sgd(1e-3)
     meanfield_vi = meanfield_vi(
         loglikelihood_fn=loglikelihood_fn,
+        logprior="unit_gaussian",
         optimizer=optimizer,
         n_samples=30,
-        logprior_name="unit_gaussian",
     )
 
     initial_pos = jnp.array([1.0])
