@@ -65,8 +65,11 @@ $$
 \end{aligned}
 $$
 
-The expected data log likelihood term encourages $q(\theta)$ to place its probability so as to explain the observed data, while the relative entropy term encourages $q(\theta)$ to be close to the prior $p(\theta)$; it keeps $q(\theta)$ from collapsing to a distribution with a single point mass. 
+The expected data log likelihood term encourages $q(\theta)$ to place its probability so as to explain the observed data, while the relative entropy term encourages $q(\theta)$ to be close to the prior $p(\theta)$; it keeps $q(\theta)$ from collapsing to a distribution with a single point mass. For most $p$ and $q$, the KL divergence in the relative entropy term is analytically intractable, in which case we can resort to the approximation 
 
+$$
+\text{KL}[q(\theta)||p(\theta)] = \mathbb{E} _{q(\theta)}[q(\theta) - p(\theta)].
+$$
 
 # Mean-field Variational Inference
 
@@ -85,6 +88,8 @@ We would like to take the gradient of the ELBO with respect to the variational p
 $$
 \nabla_\gamma \mathbb{E}_ {q_ \gamma(\theta)}[\overbrace{\text{log} \\, p(\theta, y|x) - \text{log} \\, q_ \gamma(\theta)}^{f_ \gamma(\theta)}]. \tag{2}
 $$ 
+
+
 
 ## Preliminary: Monte Carlo Integration
 
@@ -136,7 +141,7 @@ $$
 &\downarrow\\
 &\theta = \mu + \sigma \epsilon \\; \text{ where } \\; \epsilon \sim p(\epsilon) = \text{Normal}(\epsilon|0, 1). \tag{6}
 \end{align}
-$$
+$$ 
 
 Now why is this useful? Well let us go through taking the derivative in $(5)$ but with the assumption that we can reparameterize $\theta$ as a deterministic function of an auxiliary variable governed by independent marginal distribution:
 
@@ -151,7 +156,26 @@ $$
 
 We can use Monte Carlo to approximate $(7)$ and has [smaller variance](https://arxiv.org/pdf/1809.10330.pdf) than the score function estimator we saw earlier! For our use case, because we have a variational family of diagonal multivariate Gaussian distributions we can indeed employ the reparameterization trick. 
 
+# Practical Framing of Implementation
+We use the reparameterization trick in this repository because we can; namely, we choose $q(\theta)$ to be a multivariate normal distribution which is amenable to the reparameterization trick. Here we frame all the work we have done above that best resembles the implementation in this repository. First, we formulate the ELBO such that it has the KL divergence term in it. We have written this already in $(2)$, but now we make the variational parameters explicit:
 
+
+$$
+\text{ELBO}(q_ \gamma(\theta)) = \underbrace{\mathbb{E} _{q _\gamma(\theta)}[\text{log}  \\, p(y|x, \theta)]} _{\text{Expected data loglikelihood}} - \underbrace{\text{KL}[q _\gamma(\theta)||p(\theta)]} _{\text{Relative entropy}}
+$$
+
+From the reparameterization trick we have $\theta = g _\gamma(\epsilon)$, and as a consequence the ELBO becomes:
+
+$$
+\begin{align}
+\text{ELBO}(q_ \gamma(\theta)) &= \mathbb{E} _{q _\gamma(\theta)}[\text{log}  \\, p(y|x, \theta)] - \text{KL}[q _\gamma(\theta)||p(\theta)] \\
+\overset{\text{reparam trick}}{\rightarrow} \\; \\; \\; &= \mathbb{E} _{p(\epsilon)} [\text{log}  \\, p(y|x, g _\gamma(\epsilon)] - \text{KL}[q(g _\gamma(\epsilon))||p(g _\gamma(\epsilon))]
+\end{align}
+$$
+
+Sometimes, given the form chosen for $q(\theta)$ and $p(\theta)$, we can analytically compute the KL divergence term and takes its derivative. In other cases, we cannot. 
+
+## Case 1: KL term is not analytically tractable
 
 
 
