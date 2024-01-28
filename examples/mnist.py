@@ -6,7 +6,7 @@ from datasets import load_dataset
 
 import flax.linen as nn
 import jax.scipy.stats as stats
-from weight_uncertainty.new_interface import meanfield_vi
+from weight_uncertainty.meanfield_vi import meanfield_vi
 from jax.random import split
 from jax import lax
 
