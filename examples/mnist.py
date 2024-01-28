@@ -6,7 +6,9 @@ from datasets import load_dataset
 
 import flax.linen as nn
 import jax.scipy.stats as stats
-from weight_uncertainty.interface import meanfield_vi
+from weight_uncertainty.new_interface import meanfield_vi
+from jax.random import split
+from jax import lax
 
 
 def one_hot_encode(x, k):
@@ -77,6 +79,56 @@ def compute_accuracy(outputs, y):
     return jnp.mean(predicted_class == target_class)
 
 
+def run_inference_algorithm(
+    rng_key,
+    initial_state_or_position,
+    inference_algorithm,
+    batches,
+    num_steps,
+    eval_every,
+) -> tuple:
+    """Wrapper to run an inference algorithm.
+
+    Parameters
+    ----------
+    rng_key : PRNGKey
+        The random state used by JAX's random numbers generator.
+    initial_state_or_position: ArrayLikeTree
+        The initial state OR the initial position of the inference algorithm. If an initial position
+        is passed in, the function will automatically convert it into an initial state.
+    inference_algorithm : Union[SamplingAlgorithm, VIAlgorithm]
+        One of blackjax's sampling algorithms or variational inference algorithms.
+    num_steps : int
+        Number of learning steps.
+
+    Returns
+    -------
+    Tuple[State, State, Info]
+        1. The final state of the inference algorithm.
+        2. The history of states of the inference algorithm.
+        3. The history of the info of the inference algorithm.
+    """
+    try:
+        initial_state = inference_algorithm.init(initial_state_or_position)
+    except TypeError:
+        # We assume initial_state is already in the right format.
+        initial_state = initial_state_or_position
+
+    keys = split(rng_key, num_steps)
+
+    state = initial_state
+    for i, key in enumerate(keys):
+        batch = next(batches)
+        state, info = jax.jit(inference_algorithm.step)(key, state, batch)
+
+        if i % eval_every == 0:
+            output = jax.jit(compute_predictions)(state.mu, X_test)
+            acc = compute_accuracy(output, y_test)
+            print(f"Epoch {i} | Acc: {acc} | Elbo: {info.elbo}")
+
+    return state
+
+
 if __name__ == "__main__":
     # -------------------------------- Data --------------------------------
     mnist_data = load_dataset("mnist")
@@ -93,12 +145,7 @@ if __name__ == "__main__":
 
     model = NN()
     optimizer = optax.sgd(1e-3)
-    meanfield_vi = meanfield_vi(
-        loglikelihood_fn,
-        optimizer,
-        30,
-        logprior_name="unit_gaussian",
-    )
+    meanfield_vi = meanfield_vi.init_w_iso_gauss(loglikelihood_fn, optimizer, 15)
 
     key = jax.random.PRNGKey(123)
     key, subkey = jax.random.split(key)
@@ -108,21 +155,7 @@ if __name__ == "__main__":
     key, subkey = jax.random.split(key)
     n = N_train.item()
     seed = 1
-    batch_size = 256
+    batch_size = 100
     batches = data_stream(seed, (X_train, y_train), batch_size, n)
 
-    # Sample from the posterior
-    accuracies = []
-    steps = []
-
-    print(f"LEARNING RATE: {lr}")
-    for i in range(5_000):
-        batch = next(batches)
-        mfvi_state, mfvi_info, key = meanfield_vi.step(key, mfvi_state, batch)
-
-        if i % 100 == 0:
-            output = jax.jit(compute_predictions)(mfvi_state.mu, X_test)
-            acc = compute_accuracy(output, y_test)
-            print(
-                f"Elbo at step {i} | {mfvi_info.elbo} | Log variational: {mfvi_info.log_variational} | Log joint: {mfvi_info.log_joint} | Acc at step {i} | {acc}"
-            )
+    final_state = run_inference_algorithm(key, pos, meanfield_vi, batches, 1000, 50)

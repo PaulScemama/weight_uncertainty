@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from weight_uncertainty.interface import meanfield_vi
+from weight_uncertainty.new_interface import meanfield_vi
 from datasets import Dataset
 import jax.scipy.stats as stats
 import optax
@@ -77,12 +77,13 @@ if __name__ == "__main__":
     batches = Dataset.from_dict({"y": data}).with_format("jax").iter(batch_size)
 
     optimizer = optax.sgd(1e-3)
-    meanfield_vi = meanfield_vi(
-        loglikelihood_fn=loglikelihood_fn,
-        logprior="unit_gaussian",
-        optimizer=optimizer,
-        n_samples=30,
-    )
+    # meanfield_vi = meanfield_vi(
+    #     loglikelihood_fn=loglikelihood_fn,
+    #     logprior="unit_gaussian",
+    #     optimizer=optimizer,
+    #     n_samples=30,
+    # )
+    meanfield_vi = meanfield_vi.with_iso_gauss(loglikelihood_fn, optimizer, 30)
 
     initial_pos = jnp.array([1.0])
     final_state, state_history, info_history = run_inference_algorithm(
@@ -90,7 +91,7 @@ if __name__ == "__main__":
     )
 
     key, sampling_key = split(key)
-    samples = meanfield_vi.sample(key, final_state, 100)
+    samples = meanfield_vi.sample(key, final_state)
 
     plt.hist(list(np.asarray(samples.squeeze())), bins=10)
     plt.title("Posterior over mu (= 20).")

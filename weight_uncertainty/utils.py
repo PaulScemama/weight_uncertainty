@@ -1,5 +1,8 @@
+from typing import Dict
+
 import jax
 from jax.tree_util import tree_leaves, tree_structure, tree_unflatten
+import jax.numpy as jnp
 
 
 def print_visible_devices():
@@ -21,15 +24,17 @@ def hide_gpu_from_tf():
         raise ImportError("Need to install tensorflow to use this function.")
 
 
-# Useful PyTree Utility: modified from https://github.com/google-research/google-research/blob/master/bnn_hmc/utils/tree_utils.py
-# to allow for `n_samples`` to be taken.
-def normal_like_tree(a, key, n_samples):
-    treedef = tree_structure(a)
-    num_vars = len(tree_leaves(a))
-    all_keys = jax.random.split(key, num=(num_vars + 1))
-    noise = jax.tree_map(
-        lambda p, k: jax.random.normal(k, shape=(n_samples,) + p.shape),
-        a,
-        tree_unflatten(treedef, all_keys[1:]),
-    )
-    return noise, all_keys[0]
+def calibration_curve(
+    outputs: jnp.array, labels: jnp.array, num_bins: int = 20
+) -> Dict[str, jnp.array]:
+    N = len(labels)
+    confidences = jnp.max(outputs, axis=-1)
+    preds = jnp.argmax(outputs, axis=-1)
+
+    step = (num_inputs + num_bins - 1) // num_bins
+    bins = jnp.sort(confidences)[
+        ::step
+    ]  # subsamples every `step` element of the array (starts at 0th element)
+
+    bin_lowers = bins[:-1]
+    bin_uppers = bins[1:]

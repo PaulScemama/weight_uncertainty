@@ -5,7 +5,7 @@ from jax import jit, vmap
 from jax.random import PRNGKey
 
 from weight_uncertainty.core import *
-from weight_uncertainty.kl import *
+from weight_uncertainty.kl import isotropic_gaussian_kl
 from weight_uncertainty.types import ArrayLikeTree
 import warnings
 from optax import GradientTransformation
