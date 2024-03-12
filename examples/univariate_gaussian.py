@@ -1,13 +1,12 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from weight_uncertainty.new_interface import meanfield_vi
+from weight_uncertainty.meanfield_vi import MeanFieldVI
 from datasets import Dataset
 import jax.scipy.stats as stats
 import optax
 import plotext as plt
 from jax.random import split
-from jax import lax
 
 
 def gen_data(key, n):
@@ -20,79 +19,45 @@ def loglikelihood_fn(params, batch):
     return jnp.sum(logpdf)
 
 
-def run_inference_algorithm(
-    rng_key,
-    initial_state_or_position,
-    inference_algorithm,
-    batches,
-    num_steps,
-) -> tuple:
-    """Wrapper to run an inference algorithm.
+def main():
 
-    Parameters
-    ----------
-    rng_key : PRNGKey
-        The random state used by JAX's random numbers generator.
-    initial_state_or_position: ArrayLikeTree
-        The initial state OR the initial position of the inference algorithm. If an initial position
-        is passed in, the function will automatically convert it into an initial state.
-    inference_algorithm : Union[SamplingAlgorithm, VIAlgorithm]
-        One of blackjax's sampling algorithms or variational inference algorithms.
-    num_steps : int
-        Number of learning steps.
-
-    Returns
-    -------
-    Tuple[State, State, Info]
-        1. The final state of the inference algorithm.
-        2. The history of states of the inference algorithm.
-        3. The history of the info of the inference algorithm.
-    """
-    try:
-        initial_state = inference_algorithm.init(initial_state_or_position)
-    except TypeError:
-        # We assume initial_state is already in the right format.
-        initial_state = initial_state_or_position
-
-    keys = split(rng_key, num_steps)
-
-    @jax.jit
-    def one_step(state, rng_key):
-        batch = next(batches)
-        state, info = inference_algorithm.step(rng_key, state, batch)
-        return state, (state, info)
-
-    final_state, (state_history, info_history) = lax.scan(one_step, initial_state, keys)
-    return final_state, state_history, info_history
-
-
-if __name__ == "__main__":
+    # Prepare data
     key = jax.random.PRNGKey(123)
-    key, data_key, inference_key = split(key, 3)
+    key, data_key = split(key)
     n = 250
     data = gen_data(data_key, n)
     batch_size = 50
-
-    # key must match loglikelihood_fn
     batches = Dataset.from_dict({"y": data}).with_format("jax").iter(batch_size)
 
+    # Create MeanFieldVI inference engine
     optimizer = optax.sgd(1e-3)
-    # meanfield_vi = meanfield_vi(
-    #     loglikelihood_fn=loglikelihood_fn,
-    #     logprior="unit_gaussian",
-    #     optimizer=optimizer,
-    #     n_samples=30,
-    # )
-    meanfield_vi = meanfield_vi.with_iso_gauss(loglikelihood_fn, optimizer, 30)
-
-    initial_pos = jnp.array([1.0])
-    final_state, state_history, info_history = run_inference_algorithm(
-        inference_key, initial_pos, meanfield_vi, batches, 500
+    n_samples = 15
+    init, step, sample_params = MeanFieldVI(
+        loglikelihood_fn=loglikelihood_fn, optimizer=optimizer, n_samples=n_samples
     )
 
-    key, sampling_key = split(key)
-    samples = meanfield_vi.sample(key, final_state)
+    # Run Meanfield VI
+    num_steps = 50
+    eval_every = 5
+    state = init(params=jnp.array([1.0]))
 
+    key, *training_keys = split(key, num_steps + 1)
+    for i, rng_key in enumerate(training_keys):
+        batch = next(batches)
+        state, info = step(rng_key, state, batch)
+        if i % eval_every == 0:
+            print(f"Step {i} | elbo: {info.elbo} | nll: {info.nll} | kl: {info.kl}")
+
+    # Generate posterior over parameters
+    key, sampling_key = split(key)
+    samples = sample_params(
+        sampling_key,
+        state,
+    )
     plt.hist(list(np.asarray(samples.squeeze())), bins=10)
     plt.title("Posterior over mu (= 20).")
     plt.show()
+
+
+if __name__ == "__main__":
+    main()
